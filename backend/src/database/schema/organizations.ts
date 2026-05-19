@@ -1,17 +1,13 @@
-import {
-  int,
-  mysqlEnum,
-  mysqlTable,
-  timestamp,
-  varchar,
-} from "drizzle-orm/mysql-core";
+import { pgTable, integer, varchar } from "drizzle-orm/pg-core";
+import { orgStatusEnum } from "./pg-enums";
+import { tableId, createdAtCol, updatedAtCol } from "../pg-columns";
 
 /**
  * SaaS tenant: one row per company on the platform.
  * All business data scopes under organization_id.
  */
-export const organizations = mysqlTable("organizations", {
-  id: int("id").autoincrement().primaryKey(),
+export const organizations = pgTable("organizations", {
+  id: tableId(),
   uuid: varchar("uuid", { length: 36 }).notNull().unique(),
   name: varchar("name", { length: 255 }).notNull(),
   slug: varchar("slug", { length: 100 }).notNull().unique(),
@@ -30,9 +26,9 @@ export const organizations = mysqlTable("organizations", {
   employeeCountBand: varchar("employee_count_band", { length: 32 }),
   alternateContactName: varchar("alternate_contact_name", { length: 150 }),
   payableDaysPolicy: varchar("payable_days_policy", { length: 32 }).notNull().default("calendar_month"),
-  standardWorkdayMinutes: int("standard_workday_minutes").notNull().default(480),
-  status: mysqlEnum("status", ["active", "suspended"]).notNull().default("active"),
+  standardWorkdayMinutes: integer("standard_workday_minutes").notNull().default(480),
+  status: orgStatusEnum("status").notNull().default("active"),
   subscriptionStatus: varchar("subscription_status", { length: 64 }).notNull().default("trial"),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+  createdAt: createdAtCol(),
+  updatedAt: updatedAtCol(),
 });

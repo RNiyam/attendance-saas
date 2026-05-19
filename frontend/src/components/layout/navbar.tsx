@@ -1,4 +1,5 @@
 import { Bell, Search } from "lucide-react";
+import { LogoutControl } from "@/components/layout/logout-control";
 import { Badge } from "@/components/ui/badge";
 
 type NavbarProps = {
@@ -18,7 +19,8 @@ export function Navbar({ userName, role }: NavbarProps) {
           <Bell className="h-4 w-4" />
         </button>
         {role ? <Badge>{role}</Badge> : null}
-        <div className="text-sm font-medium">{userName}</div>
+        <span className="hidden text-sm font-medium sm:inline">{userName}</span>
+        <LogoutControl variant="compact" />
       </div>
     </header>
   );

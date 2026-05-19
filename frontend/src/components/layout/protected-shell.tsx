@@ -5,7 +5,8 @@ import { usePathname, useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { Navbar } from "@/components/layout/navbar";
 import { Sidebar } from "@/components/layout/sidebar";
-import { apiBaseUrl } from "@/services/http";
+import { LogoutControl } from "@/components/layout/logout-control";
+import { apiBaseUrl, clearAuthSession } from "@/services/http";
 import type { UserRole } from "@/types/rbac";
 
 type MeResponse = {
@@ -62,8 +63,7 @@ export function ProtectedShell({ children }: ProtectedShellProps) {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (res.status === 401) {
-        localStorage.removeItem("accessToken");
-        localStorage.removeItem("refreshToken");
+        clearAuthSession();
         router.replace("/login");
         return;
       }
@@ -200,6 +200,7 @@ export function ProtectedShell({ children }: ProtectedShellProps) {
                 <p className="hidden truncate text-[11px] font-medium text-[#6B6B80] sm:block">{user.email}</p>
               </div>
             </div>
+            <LogoutControl variant="compact" />
           </div>
         </nav>
 
@@ -219,8 +220,11 @@ export function ProtectedShell({ children }: ProtectedShellProps) {
   if (isSetup) {
     return (
       <div className="min-h-screen bg-[#F8FAFC] text-[#0F0F1A]">
+        <div className="fixed right-3 top-3 z-40 md:hidden">
+          <LogoutControl variant="compact" />
+        </div>
         <Sidebar role={dashboardRole} permissions={me.permissions} variant="hover" />
-        <main className="min-h-screen pl-0 md:pl-16">{children}</main>
+        <main className="min-h-screen pl-0 pt-12 md:pt-0 md:pl-16">{children}</main>
       </div>
     );
   }

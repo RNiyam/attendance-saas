@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { dashboardNavItems } from "@/lib/navigation";
+import { LogoutControl } from "@/components/layout/logout-control";
 import type { UserRole } from "@/types/rbac";
 
 type SidebarProps = {
@@ -46,8 +47,8 @@ export function Sidebar({ role, permissions = [], variant = "default" }: Sidebar
 
   if (variant === "hover") {
     return (
-      <aside className="group fixed inset-y-0 left-0 z-30 hidden w-16 border-r border-[#E8E5F0] bg-white/95 shadow-sm backdrop-blur transition-[width] duration-200 hover:w-60 md:block">
-        <div className="flex h-16 items-center gap-3 border-b border-[#E8E5F0] px-4">
+      <aside className="group fixed inset-y-0 left-0 z-30 hidden w-16 flex-col border-r border-[#E8E5F0] bg-white/95 shadow-sm backdrop-blur transition-[width] duration-200 hover:w-60 md:flex">
+        <div className="flex h-16 shrink-0 items-center gap-3 border-b border-[#E8E5F0] px-4">
           <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-[#4F7FFF] to-[#7C3AED] text-white shadow-md shadow-blue-200">
             <Building2 className="h-5 w-5" />
           </div>
@@ -55,7 +56,7 @@ export function Sidebar({ role, permissions = [], variant = "default" }: Sidebar
             WorkforceOS
           </span>
         </div>
-        <nav className="space-y-2 px-3 py-5">
+        <nav className="flex-1 space-y-2 overflow-y-auto px-3 py-5">
           {items.map((item) => {
             const Icon = iconByHref[item.href as keyof typeof iconByHref] ?? LayoutDashboard;
             const active = pathname === item.href || (item.href !== "/dashboard" && pathname.startsWith(`${item.href}/`));
@@ -79,17 +80,20 @@ export function Sidebar({ role, permissions = [], variant = "default" }: Sidebar
             );
           })}
         </nav>
+        <div className="shrink-0 border-t border-[#E8E5F0] p-3">
+          <LogoutControl variant="sidebar-hover" />
+        </div>
       </aside>
     );
   }
 
   return (
-    <aside className="w-full border-r border-border bg-white md:w-64">
-      <div className="flex h-16 items-center gap-2 border-b border-border px-4">
+    <aside className="flex w-full flex-col border-r border-border bg-white md:w-64 md:min-h-screen">
+      <div className="flex h-16 shrink-0 items-center gap-2 border-b border-border px-4">
         <Building2 className="h-5 w-5" />
         <span className="font-semibold">WorkforceOS</span>
       </div>
-      <nav className="space-y-1 p-3">
+      <nav className="flex-1 space-y-1 overflow-y-auto p-3">
         {items.map((item) => {
           const active = pathname === item.href;
           const Icon = iconByHref[item.href as keyof typeof iconByHref] ?? LayoutDashboard;
@@ -108,6 +112,9 @@ export function Sidebar({ role, permissions = [], variant = "default" }: Sidebar
           );
         })}
       </nav>
+      <div className="shrink-0 border-t border-border p-3">
+        <LogoutControl variant="sidebar" />
+      </div>
     </aside>
   );
 }

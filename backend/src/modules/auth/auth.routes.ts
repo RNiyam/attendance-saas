@@ -37,7 +37,6 @@ const passwordSchema = z
   }, "Password must contain at least three of: lowercase, uppercase, number, special character");
 
 const loginSchema = z.object({
-  organizationSlug: z.string().trim().min(1),
   email: z.string().email(),
   password: z.string().min(1),
 });
@@ -76,7 +75,10 @@ router.post("/organization-code-preview", async (req, res, next) => {
 router.post("/login", async (req, res, next) => {
   try {
     const body = loginSchema.parse(req.body);
-    const result = await authService.login(body);
+    const rawSlug = req.body?.organizationSlug;
+    const organizationSlug =
+      typeof rawSlug === "string" && rawSlug.trim().length > 0 ? rawSlug.trim() : undefined;
+    const result = await authService.login({ ...body, organizationSlug });
     res.json(result);
   } catch (e) {
     next(e);

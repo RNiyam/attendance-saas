@@ -405,7 +405,7 @@ export async function signup(input: SignupInput) {
     input.appLoginUrl
       ? appendSignupParams(input.appLoginUrl, organizationCode, input.ownerEmail.toLowerCase())
       : `https://app.example.com/complete-signup?org=${organizationCode}&email=${encodeURIComponent(input.ownerEmail.toLowerCase())}`;
-  await sendWelcomeEmail({
+  void sendWelcomeEmail({
     organizationId: result.org.id,
     to: input.ownerEmail,
     userName: display,
@@ -435,7 +435,7 @@ function parseDurationToDays(s: string): number | null {
   return null;
 }
 
-export type LoginInput = { organizationSlug: string; email: string; password: string };
+export type LoginInput = { organizationSlug?: string; email: string; password: string };
 export type CompletePasswordSetupInput = {
   organizationSlug: string;
   email: string;
@@ -443,24 +443,54 @@ export type CompletePasswordSetupInput = {
   newPassword: string;
 };
 
-export async function login(input: LoginInput) {
-  const organizationCode = normalizeOrganizationCode(input.organizationSlug);
-  const [org] = await db.select().from(organizations).where(eq(organizations.slug, organizationCode)).limit(1);
-  if (!org) {
-    const err = new Error("Invalid credentials");
-    (err as { status?: number }).status = 401;
-    throw err;
+async function resolveLoginUserAndOrg(input: LoginInput) {
+  const email = input.email.trim().toLowerCase();
+  const slugRaw = input.organizationSlug?.trim();
+
+  if (slugRaw) {
+    const organizationCode = normalizeOrganizationCode(slugRaw);
+    const [org] = await db.select().from(organizations).where(eq(organizations.slug, organizationCode)).limit(1);
+    if (!org) {
+      const err = new Error("Invalid credentials");
+      (err as { status?: number }).status = 401;
+      throw err;
+    }
+    const [user] = await db
+      .select()
+      .from(users)
+      .where(and(eq(users.organizationId, org.id), eq(users.email, email)))
+      .limit(1);
+    if (!user || user.status !== "active") {
+      const err = new Error("Invalid credentials");
+      (err as { status?: number }).status = 401;
+      throw err;
+    }
+    return { org, user };
   }
-  const [user] = await db
-    .select()
+
+  const matches = await db
+    .select({ user: users, org: organizations })
     .from(users)
-    .where(and(eq(users.organizationId, org.id), eq(users.email, input.email.toLowerCase())))
-    .limit(1);
-  if (!user || user.status !== "active") {
+    .innerJoin(organizations, eq(users.organizationId, organizations.id))
+    .where(and(eq(users.email, email), eq(users.status, "active")));
+
+  if (matches.length === 0) {
     const err = new Error("Invalid credentials");
     (err as { status?: number }).status = 401;
     throw err;
   }
+  if (matches.length > 1) {
+    const err = new Error(
+      "This email is linked to more than one workspace. Ask your administrator which organization code to use.",
+    );
+    (err as { status?: number }).status = 409;
+    throw err;
+  }
+  return { org: matches[0].org, user: matches[0].user };
+}
+
+export async function login(input: LoginInput) {
+  const { org, user } = await resolveLoginUserAndOrg(input);
   if (user.accountLockedUntil && new Date(user.accountLockedUntil) > new Date()) {
     const err = new Error("Account temporarily locked due to failed login attempts");
     (err as { status?: number }).status = 423;

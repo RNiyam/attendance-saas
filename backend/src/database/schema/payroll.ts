@@ -1,127 +1,142 @@
-import { date, decimal, int, mysqlEnum, mysqlTable, timestamp, uniqueIndex, varchar } from "drizzle-orm/mysql-core";
+import { integer, numeric, pgTable, timestamp, uniqueIndex, varchar } from "drizzle-orm/pg-core";
+import {
+  adjustmentTypeEnum,
+  componentTypeEnum,
+  payrollCycleStatusEnum,
+  payrollRunStatusEnum,
+  payslipStatusEnum,
+} from "./pg-enums";
+import { createdAtCol, dateCol, tableId, updatedAtCol } from "../pg-columns";
 import { employees } from "./employees";
 import { organizations } from "./organizations";
 
-export const salaryComponents = mysqlTable(
+export const salaryComponents = pgTable(
   "salary_components",
   {
-    id: int("id").autoincrement().primaryKey(),
-    organizationId: int("organization_id")
+    id: tableId(),
+    organizationId: integer("organization_id")
       .notNull()
       .references(() => organizations.id, { onDelete: "cascade" }),
     name: varchar("name", { length: 100 }).notNull(),
     code: varchar("code", { length: 30 }).notNull(),
-    componentType: mysqlEnum("component_type", ["earning", "deduction"]).notNull(),
-    isTaxable: int("is_taxable").notNull().default(0),
-    createdAt: timestamp("created_at").defaultNow().notNull(),
-    updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+    componentType: componentTypeEnum("component_type").notNull(),
+    isTaxable: integer("is_taxable").notNull().default(0),
+    createdAt: createdAtCol(),
+    updatedAt: updatedAtCol(),
   },
   (t) => [uniqueIndex("salary_components_org_code_uidx").on(t.organizationId, t.code)],
 );
 
-export const salaryTemplates = mysqlTable(
+export const salaryTemplates = pgTable(
   "salary_templates",
   {
-    id: int("id").autoincrement().primaryKey(),
-    organizationId: int("organization_id")
+    id: tableId(),
+    organizationId: integer("organization_id")
       .notNull()
       .references(() => organizations.id, { onDelete: "cascade" }),
     name: varchar("name", { length: 150 }).notNull(),
     description: varchar("description", { length: 500 }),
-    createdAt: timestamp("created_at").defaultNow().notNull(),
-    updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+    createdAt: createdAtCol(),
+    updatedAt: updatedAtCol(),
   },
   (t) => [uniqueIndex("salary_templates_org_name_uidx").on(t.organizationId, t.name)],
 );
 
-export const employeeSalaryTemplateAssignments = mysqlTable(
+export const employeeSalaryTemplateAssignments = pgTable(
   "employee_salary_template_assignments",
   {
-    id: int("id").autoincrement().primaryKey(),
-    organizationId: int("organization_id")
+    id: tableId(),
+    organizationId: integer("organization_id")
       .notNull()
       .references(() => organizations.id, { onDelete: "cascade" }),
-    employeeId: int("employee_id")
+    employeeId: integer("employee_id")
       .notNull()
       .references(() => employees.id, { onDelete: "cascade" }),
-    salaryTemplateId: int("salary_template_id")
+    salaryTemplateId: integer("salary_template_id")
       .notNull()
       .references(() => salaryTemplates.id, { onDelete: "cascade" }),
-    effectiveFrom: date("effective_from").notNull(),
-    effectiveTo: date("effective_to"),
-    createdAt: timestamp("created_at").defaultNow().notNull(),
-    updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+    effectiveFrom: dateCol("effective_from").notNull(),
+    effectiveTo: dateCol("effective_to"),
+    createdAt: createdAtCol(),
+    updatedAt: updatedAtCol(),
   },
-  (t) => [uniqueIndex("employee_salary_template_unique").on(t.organizationId, t.employeeId, t.salaryTemplateId, t.effectiveFrom)],
+  (t) => [
+    uniqueIndex("employee_salary_template_unique").on(
+      t.organizationId,
+      t.employeeId,
+      t.salaryTemplateId,
+      t.effectiveFrom,
+    ),
+  ],
 );
 
-export const payrollCycles = mysqlTable(
+export const payrollCycles = pgTable(
   "payroll_cycles",
   {
-    id: int("id").autoincrement().primaryKey(),
-    organizationId: int("organization_id")
+    id: tableId(),
+    organizationId: integer("organization_id")
       .notNull()
       .references(() => organizations.id, { onDelete: "cascade" }),
     name: varchar("name", { length: 100 }).notNull(),
-    startDate: date("start_date").notNull(),
-    endDate: date("end_date").notNull(),
-    status: mysqlEnum("status", ["draft", "processing", "completed"]).notNull().default("draft"),
-    createdAt: timestamp("created_at").defaultNow().notNull(),
-    updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+    startDate: dateCol("start_date").notNull(),
+    endDate: dateCol("end_date").notNull(),
+    status: payrollCycleStatusEnum("status").notNull().default("draft"),
+    createdAt: createdAtCol(),
+    updatedAt: updatedAtCol(),
   },
   (t) => [uniqueIndex("payroll_cycles_org_name_uidx").on(t.organizationId, t.name)],
 );
 
-export const payrollRuns = mysqlTable("payroll_runs", {
-  id: int("id").autoincrement().primaryKey(),
-  organizationId: int("organization_id")
+export const payrollRuns = pgTable("payroll_runs", {
+  id: tableId(),
+  organizationId: integer("organization_id")
     .notNull()
     .references(() => organizations.id, { onDelete: "cascade" }),
-  payrollCycleId: int("payroll_cycle_id")
+  payrollCycleId: integer("payroll_cycle_id")
     .notNull()
     .references(() => payrollCycles.id, { onDelete: "cascade" }),
-  status: mysqlEnum("status", ["started", "completed", "failed"]).notNull().default("started"),
-  totalEmployees: int("total_employees").notNull().default(0),
-  totalGross: decimal("total_gross", { precision: 12, scale: 2 }).notNull().default("0"),
-  totalNet: decimal("total_net", { precision: 12, scale: 2 }).notNull().default("0"),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
+  status: payrollRunStatusEnum("status").notNull().default("started"),
+  totalEmployees: integer("total_employees").notNull().default(0),
+  totalGross: numeric("total_gross", { precision: 12, scale: 2 }).notNull().default("0"),
+  totalNet: numeric("total_net", { precision: 12, scale: 2 }).notNull().default("0"),
+  createdAt: createdAtCol(),
 });
 
-export const payrollAdjustments = mysqlTable("payroll_adjustments", {
-  id: int("id").autoincrement().primaryKey(),
-  organizationId: int("organization_id")
+export const payrollAdjustments = pgTable("payroll_adjustments", {
+  id: tableId(),
+  organizationId: integer("organization_id")
     .notNull()
     .references(() => organizations.id, { onDelete: "cascade" }),
-  employeeId: int("employee_id")
+  employeeId: integer("employee_id")
     .notNull()
     .references(() => employees.id, { onDelete: "cascade" }),
-  payrollCycleId: int("payroll_cycle_id")
+  payrollCycleId: integer("payroll_cycle_id")
     .notNull()
     .references(() => payrollCycles.id, { onDelete: "cascade" }),
-  adjustmentType: mysqlEnum("adjustment_type", ["bonus", "deduction"]).notNull(),
-  amount: decimal("amount", { precision: 10, scale: 2 }).notNull(),
+  adjustmentType: adjustmentTypeEnum("adjustment_type").notNull(),
+  amount: numeric("amount", { precision: 10, scale: 2 }).notNull(),
   reason: varchar("reason", { length: 255 }),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
+  createdAt: createdAtCol(),
 });
 
-export const payslips = mysqlTable(
+export const payslips = pgTable(
   "payslips",
   {
-    id: int("id").autoincrement().primaryKey(),
-    organizationId: int("organization_id")
+    id: tableId(),
+    organizationId: integer("organization_id")
       .notNull()
       .references(() => organizations.id, { onDelete: "cascade" }),
-    employeeId: int("employee_id")
+    employeeId: integer("employee_id")
       .notNull()
       .references(() => employees.id, { onDelete: "cascade" }),
-    payrollCycleId: int("payroll_cycle_id")
+    payrollCycleId: integer("payroll_cycle_id")
       .notNull()
       .references(() => payrollCycles.id, { onDelete: "cascade" }),
-    grossAmount: decimal("gross_amount", { precision: 12, scale: 2 }).notNull().default("0"),
-    deductionAmount: decimal("deduction_amount", { precision: 12, scale: 2 }).notNull().default("0"),
-    netAmount: decimal("net_amount", { precision: 12, scale: 2 }).notNull().default("0"),
-    status: mysqlEnum("status", ["draft", "final"]).notNull().default("draft"),
-    generatedAt: timestamp("generated_at").defaultNow().notNull(),
+    grossAmount: numeric("gross_amount", { precision: 12, scale: 2 }).notNull().default("0"),
+    deductionAmount: numeric("deduction_amount", { precision: 12, scale: 2 }).notNull().default("0"),
+    netAmount: numeric("net_amount", { precision: 12, scale: 2 }).notNull().default("0"),
+    status: payslipStatusEnum("status").notNull().default("draft"),
+    generatedAt: timestamp("generated_at", { mode: "date" }).defaultNow().notNull(),
   },
   (t) => [uniqueIndex("payslips_org_employee_cycle_uidx").on(t.organizationId, t.employeeId, t.payrollCycleId)],
 );

@@ -393,9 +393,13 @@ export async function activateEmployeeInvite(tokenRaw: string, password: string)
       .where(and(eq(roles.organizationId, invite.organizationId), eq(roles.name, "EMPLOYEE")))
       .limit(1);
     if (employeeRole && userId) {
-      await tx.insert(userRoles).values({ userId, roleId: employeeRole.id }).onDuplicateKeyUpdate({
-        set: { roleId: employeeRole.id },
-      });
+      await tx
+        .insert(userRoles)
+        .values({ userId, roleId: employeeRole.id })
+        .onConflictDoUpdate({
+          target: [userRoles.userId, userRoles.roleId],
+          set: { roleId: employeeRole.id },
+        });
     }
     return { ok: true };
   });

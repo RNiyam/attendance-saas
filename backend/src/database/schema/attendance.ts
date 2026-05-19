@@ -1,83 +1,87 @@
-import { date, datetime, int, mysqlEnum, mysqlTable, text, timestamp, varchar } from "drizzle-orm/mysql-core";
+import { integer, pgTable, text, timestamp, varchar } from "drizzle-orm/pg-core";
+import {
+  attendanceEventTypeEnum,
+  attendanceSourceEnum,
+  attendanceStatusEnum,
+} from "./pg-enums";
+import { createdAtCol, dateCol, tableId, updatedAtCol } from "../pg-columns";
 import { employees } from "./employees";
 import { organizations } from "./organizations";
 import { employeeShiftAssignments, shiftBreaks } from "./shift-engine";
 
-export const attendanceRecords = mysqlTable("attendance_records", {
-  id: int("id").autoincrement().primaryKey(),
-  organizationId: int("organization_id")
+export const attendanceRecords = pgTable("attendance_records", {
+  id: tableId(),
+  organizationId: integer("organization_id")
     .notNull()
     .references(() => organizations.id, { onDelete: "cascade" }),
-  employeeId: int("employee_id")
+  employeeId: integer("employee_id")
     .notNull()
     .references(() => employees.id, { onDelete: "cascade" }),
-  shiftAssignmentId: int("shift_assign_id").references(() => employeeShiftAssignments.id, { onDelete: "set null" }),
-  attendanceDate: date("attendance_date").notNull(),
-  checkInTime: datetime("check_in_time"),
-  checkOutTime: datetime("check_out_time"),
-  workDurationMinutes: int("work_duration_minutes"),
-  payableDurationMinutes: int("payable_duration_minutes"),
-  unpaidBreakMinutes: int("unpaid_break_minutes").notNull().default(0),
-  overtimeMinutes: int("overtime_minutes").notNull().default(0),
-  lateMinutes: int("late_minutes").notNull().default(0),
-  earlyExitMinutes: int("early_exit_minutes").notNull().default(0),
-  attendanceStatus: mysqlEnum("attendance_status", ["present", "absent", "late", "half_day", "on_leave"])
-    .notNull()
-    .default("present"),
-  attendanceSource: mysqlEnum("attendance_source", ["mobile", "biometric", "face", "qr", "manual"])
-    .notNull()
-    .default("mobile"),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+  shiftAssignmentId: integer("shift_assign_id").references(() => employeeShiftAssignments.id, {
+    onDelete: "set null",
+  }),
+  attendanceDate: dateCol("attendance_date").notNull(),
+  checkInTime: timestamp("check_in_time", { mode: "date" }),
+  checkOutTime: timestamp("check_out_time", { mode: "date" }),
+  workDurationMinutes: integer("work_duration_minutes"),
+  payableDurationMinutes: integer("payable_duration_minutes"),
+  unpaidBreakMinutes: integer("unpaid_break_minutes").notNull().default(0),
+  overtimeMinutes: integer("overtime_minutes").notNull().default(0),
+  lateMinutes: integer("late_minutes").notNull().default(0),
+  earlyExitMinutes: integer("early_exit_minutes").notNull().default(0),
+  attendanceStatus: attendanceStatusEnum("attendance_status").notNull().default("present"),
+  attendanceSource: attendanceSourceEnum("attendance_source").notNull().default("mobile"),
+  createdAt: createdAtCol(),
+  updatedAt: updatedAtCol(),
 });
 
-export const attendanceEvents = mysqlTable("attendance_events", {
-  id: int("id").autoincrement().primaryKey(),
-  organizationId: int("organization_id")
+export const attendanceEvents = pgTable("attendance_events", {
+  id: tableId(),
+  organizationId: integer("organization_id")
     .notNull()
     .references(() => organizations.id, { onDelete: "cascade" }),
-  employeeId: int("employee_id")
+  employeeId: integer("employee_id")
     .notNull()
     .references(() => employees.id, { onDelete: "cascade" }),
-  recordId: int("record_id").references(() => attendanceRecords.id, { onDelete: "set null" }),
-  eventType: mysqlEnum("event_type", ["check_in", "check_out", "break_start", "break_end"]).notNull(),
-  eventTime: datetime("event_time").notNull(),
+  recordId: integer("record_id").references(() => attendanceRecords.id, { onDelete: "set null" }),
+  eventType: attendanceEventTypeEnum("event_type").notNull(),
+  eventTime: timestamp("event_time", { mode: "date" }).notNull(),
   source: varchar("source", { length: 30 }).notNull().default("mobile"),
   metadata: text("metadata"),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
+  createdAt: createdAtCol(),
 });
 
-export const attendanceBreaks = mysqlTable("attendance_breaks", {
-  id: int("id").autoincrement().primaryKey(),
-  organizationId: int("organization_id")
+export const attendanceBreaks = pgTable("attendance_breaks", {
+  id: tableId(),
+  organizationId: integer("organization_id")
     .notNull()
     .references(() => organizations.id, { onDelete: "cascade" }),
-  recordId: int("record_id")
+  recordId: integer("record_id")
     .notNull()
     .references(() => attendanceRecords.id, { onDelete: "cascade" }),
-  shiftBreakId: int("shift_break_id").references(() => shiftBreaks.id, { onDelete: "set null" }),
+  shiftBreakId: integer("shift_break_id").references(() => shiftBreaks.id, { onDelete: "set null" }),
   category: varchar("category", { length: 40 }),
   payType: varchar("pay_type", { length: 20 }),
   ruleType: varchar("rule_type", { length: 20 }),
-  breakStart: datetime("break_start").notNull(),
-  breakEnd: datetime("break_end"),
-  durationMinutes: int("duration_minutes"),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
+  breakStart: timestamp("break_start", { mode: "date" }).notNull(),
+  breakEnd: timestamp("break_end", { mode: "date" }),
+  durationMinutes: integer("duration_minutes"),
+  createdAt: createdAtCol(),
 });
 
-export const attendanceAdjustments = mysqlTable("attendance_adjustments", {
-  id: int("id").autoincrement().primaryKey(),
-  organizationId: int("organization_id")
+export const attendanceAdjustments = pgTable("attendance_adjustments", {
+  id: tableId(),
+  organizationId: integer("organization_id")
     .notNull()
     .references(() => organizations.id, { onDelete: "cascade" }),
-  recordId: int("record_id")
+  recordId: integer("record_id")
     .notNull()
     .references(() => attendanceRecords.id, { onDelete: "cascade" }),
-  adjustedByUserId: int("adjusted_by_user_id").notNull(),
+  adjustedByUserId: integer("adjusted_by_user_id").notNull(),
   reason: varchar("reason", { length: 300 }).notNull(),
-  previousCheckIn: datetime("previous_check_in"),
-  previousCheckOut: datetime("previous_check_out"),
-  newCheckIn: datetime("new_check_in"),
-  newCheckOut: datetime("new_check_out"),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
+  previousCheckIn: timestamp("previous_check_in", { mode: "date" }),
+  previousCheckOut: timestamp("previous_check_out", { mode: "date" }),
+  newCheckIn: timestamp("new_check_in", { mode: "date" }),
+  newCheckOut: timestamp("new_check_out", { mode: "date" }),
+  createdAt: createdAtCol(),
 });

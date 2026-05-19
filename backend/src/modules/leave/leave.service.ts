@@ -72,8 +72,9 @@ export async function upsertLeaveBalance(input: {
       used: "0",
       remaining: input.allocated,
     })
-    .onDuplicateKeyUpdate({
-      set: { allocated: input.allocated, remaining: String(allocated) },
+    .onConflictDoUpdate({
+      target: [leaveBalances.organizationId, leaveBalances.employeeId, leaveBalances.leaveTypeId],
+      set: { allocated: input.allocated, remaining: input.allocated },
     });
 }
 
@@ -432,7 +433,7 @@ export async function saveLeavePolicyApprovalLevels(
         levelOrder: level.levelOrder,
         minApproversRequired: level.minApproversRequired,
       })
-      .$returningId();
+      .returning({ id: leavePolicyApprovalLevels.id });
     const levelId = inserted?.id;
     if (!levelId || !level.approvers.length) continue;
 
