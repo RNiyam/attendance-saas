@@ -3,12 +3,19 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { ArrowLeft, ChevronDown, Clock3, Layers3, Plus, Tags, Trash2, Users } from "lucide-react";
+import { ArrowLeft, ChevronDown, Layers3, Plus, Tags, Trash2, Users } from "lucide-react";
 import { apiBaseUrl, authenticatedFetch } from "@/services/http";
 
-type FunctionType = "departments" | "designations" | "shifts";
+type FunctionType = "departments" | "designations";
 
-type MasterData = Record<FunctionType, { id: number; name: string; startTime?: string; endTime?: string }[]>;
+type MasterData = {
+  departments: { id: number; name: string }[];
+  designations: { id: number; departmentId: number; name: string }[];
+};
+
+type PredefinedData = {
+  departments: { name: string; designations: string[] }[];
+};
 
 const functionOptions: {
   id: FunctionType;
@@ -31,13 +38,6 @@ const functionOptions: {
     icon: Tags,
     placeholder: "Manager",
   },
-  {
-    id: "shifts",
-    title: "Shifts",
-    desc: "Reusable attendance shifts with default start and end times.",
-    icon: Clock3,
-    placeholder: "Morning Shift",
-  },
 ];
 
 const inputClass =
@@ -57,10 +57,11 @@ async function readApiError(res: Response, fallback: string) {
 export default function BusinessFunctionsSetupPage() {
   const router = useRouter();
   const [selectedType, setSelectedType] = useState<FunctionType>("departments");
-  const [data, setData] = useState<MasterData>({ departments: [], designations: [], shifts: [] });
+  const [data, setData] = useState<MasterData>({ departments: [], designations: [] });
+  const [predefined, setPredefined] = useState<PredefinedData>({ departments: [] });
+  const [selectedDepartmentId, setSelectedDepartmentId] = useState<number | "">("");
+  const [isCustomValue, setIsCustomValue] = useState(false);
   const [value, setValue] = useState("");
-  const [startTime, setStartTime] = useState("09:00");
-  const [endTime, setEndTime] = useState("18:00");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [deletingKey, setDeletingKey] = useState<string | null>(null);
@@ -72,17 +73,26 @@ export default function BusinessFunctionsSetupPage() {
     [selectedType],
   );
   const ActiveIcon = active.icon;
-  const values = data[selectedType];
+  const values = (selectedType === "designations"
+    ? data.designations.filter((d) => selectedDepartmentId === "" || d.departmentId === selectedDepartmentId)
+    : data.departments) as { id: number; name: string; departmentId?: number }[];
 
   const load = useCallback(async () => {
-    const res = await authenticatedFetch(`${apiBaseUrl}/api/organization/business-functions`);
-    if (!res.ok) return;
-    const body = (await res.json()) as MasterData;
-    setData({
-      departments: body.departments ?? [],
-      designations: body.designations ?? [],
-      shifts: body.shifts ?? [],
-    });
+    const [res, preRes] = await Promise.all([
+      authenticatedFetch(`${apiBaseUrl}/api/organization/business-functions`),
+      authenticatedFetch(`${apiBaseUrl}/api/organization/business-functions/predefined`),
+    ]);
+    if (res.ok) {
+      const body = (await res.json()) as MasterData;
+      setData({
+        departments: body.departments ?? [],
+        designations: body.designations ?? [],
+      });
+    }
+    if (preRes.ok) {
+      const body = (await preRes.json()) as PredefinedData;
+      setPredefined(body);
+    }
   }, []);
 
   useEffect(() => {
@@ -92,7 +102,16 @@ export default function BusinessFunctionsSetupPage() {
     return () => window.clearTimeout(id);
   }, [load]);
 
+  const allPredefinedDepartments = predefined.departments.map((d) => d.name);
+
+  const selectedDeptName = data.departments.find((d) => d.id === selectedDepartmentId)?.name;
+  const allPredefinedDesignations = predefined.departments.find((d) => d.name === selectedDeptName)?.designations || [];
+
   const addValue = async () => {
+    if (selectedType === "designations" && !selectedDepartmentId) {
+      setError("Please select a department first.");
+      return;
+    }
     const name = value.trim();
     if (!name) {
       setError(`Enter a ${active.title.slice(0, -1).toLowerCase()} name.`);
@@ -106,7 +125,7 @@ export default function BusinessFunctionsSetupPage() {
         method: "POST",
         body: JSON.stringify({
           name,
-          ...(selectedType === "shifts" ? { startTime, endTime } : {}),
+          ...(selectedType === "designations" ? { departmentId: selectedDepartmentId } : {}),
         }),
       });
       if (!res.ok) {
@@ -115,6 +134,7 @@ export default function BusinessFunctionsSetupPage() {
       }
       await res.json().catch(() => ({}));
       setValue("");
+      setIsCustomValue(false);
       setMessage(`${name} added to ${active.title}.`);
       await load();
     } catch {
@@ -223,7 +243,7 @@ export default function BusinessFunctionsSetupPage() {
                   Business Functions
                 </h1>
                 <p className="mt-2 max-w-2xl text-[13px] font-medium leading-relaxed text-[#6B6B80]">
-                  Create the fixed masters your HRMS needs first: departments, designations, and shifts.
+                  Create the fixed masters your HRMS needs first: departments and designations.
                 </p>
               </div>
 
@@ -261,6 +281,8 @@ export default function BusinessFunctionsSetupPage() {
                       setValue("");
                       setError(null);
                       setMessage(null);
+                      setSelectedDepartmentId("");
+                      setIsCustomValue(false);
                     }}
                     className={`${inputClass} appearance-none pr-10`}
                   >
@@ -282,7 +304,11 @@ export default function BusinessFunctionsSetupPage() {
                     <button
                       key={option.id}
                       type="button"
-                      onClick={() => setSelectedType(option.id)}
+                      onClick={() => {
+                        setSelectedType(option.id);
+                        setSelectedDepartmentId("");
+                        setIsCustomValue(false);
+                      }}
                       className={`flex w-full items-start gap-3 rounded-xl border p-3 text-left transition ${
                         selected
                           ? "border-[#C7D7FE] bg-[#EFF6FF]"
@@ -325,16 +351,84 @@ export default function BusinessFunctionsSetupPage() {
               </div>
 
               <div className="mt-6 rounded-xl border border-dashed border-[#DAD7E8] bg-[#FAFAFA] p-4">
+                {selectedType === "designations" && data.departments.length > 0 ? (
+                  <div className="mb-4">
+                    <label className="mb-1.5 block text-[10.5px] font-bold uppercase tracking-wider text-[#9CA3AF]">
+                      Select Department
+                    </label>
+                    <div className="relative">
+                      <select
+                        value={selectedDepartmentId}
+                        onChange={(e) => setSelectedDepartmentId(Number(e.target.value) || "")}
+                        className={`${inputClass} appearance-none pr-10`}
+                      >
+                        <option value="">-- All Departments --</option>
+                        {data.departments.map((dept) => (
+                          <option key={dept.id} value={dept.id}>
+                            {dept.name}
+                          </option>
+                        ))}
+                      </select>
+                      <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#9CA3AF]" />
+                    </div>
+                  </div>
+                ) : null}
+
                 <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_auto]">
-                  <input
-                    className={inputClass}
-                    value={value}
-                    onChange={(e) => setValue(e.target.value)}
-                    placeholder={active.placeholder}
-                  />
+                  {isCustomValue ? (
+                    <div className="relative">
+                      <input
+                        className={inputClass}
+                        value={value}
+                        onChange={(e) => setValue(e.target.value)}
+                        placeholder={active.placeholder}
+                        autoFocus
+                      />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsCustomValue(false);
+                          setValue("");
+                        }}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-[11px] font-bold text-[#6B6B80] hover:text-[#0F0F1A]"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="relative">
+                      <select
+                        className={`${inputClass} appearance-none pr-10`}
+                        value={value}
+                        onChange={(e) => {
+                          if (e.target.value === "__CUSTOM__") {
+                            setIsCustomValue(true);
+                            setValue("");
+                          } else {
+                            setValue(e.target.value);
+                          }
+                        }}
+                      >
+                        <option value="">-- Select {active.title.slice(0, -1)} --</option>
+                        {(selectedType === "departments" ? allPredefinedDepartments : allPredefinedDesignations).map((opt) => {
+                          const isAdded = selectedType === "departments" 
+                            ? data.departments.some((d) => d.name === opt)
+                            : data.designations.some((d) => d.departmentId === selectedDepartmentId && d.name === opt);
+                          return (
+                            <option key={opt} value={opt} disabled={isAdded}>
+                              {opt} {isAdded ? "(Already Added)" : ""}
+                            </option>
+                          );
+                        })}
+                        <option value="__CUSTOM__">+ Other (Add Custom)</option>
+                      </select>
+                      <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#9CA3AF]" />
+                    </div>
+                  )}
+
                   <button
                     type="button"
-                    disabled={saving}
+                    disabled={saving || (!isCustomValue && !value)}
                     onClick={() => void addValue()}
                     className="flex h-11 items-center justify-center gap-2 rounded-xl bg-gradient-to-br from-[#4F7FFF] to-[#7C3AED] px-5 text-[13px] font-black text-white shadow-lg shadow-[#4F7FFF]/20 transition hover:opacity-[0.97] disabled:opacity-50"
                   >
@@ -342,23 +436,6 @@ export default function BusinessFunctionsSetupPage() {
                     {saving ? "Adding..." : "Add Value"}
                   </button>
                 </div>
-
-                {selectedType === "shifts" ? (
-                  <div className="mt-3 grid gap-3 sm:grid-cols-2">
-                    <label className="block">
-                      <span className="mb-1.5 block text-[10.5px] font-bold uppercase tracking-wider text-[#9CA3AF]">
-                        Start Time
-                      </span>
-                      <input type="time" className={inputClass} value={startTime} onChange={(e) => setStartTime(e.target.value)} />
-                    </label>
-                    <label className="block">
-                      <span className="mb-1.5 block text-[10.5px] font-bold uppercase tracking-wider text-[#9CA3AF]">
-                        End Time
-                      </span>
-                      <input type="time" className={inputClass} value={endTime} onChange={(e) => setEndTime(e.target.value)} />
-                    </label>
-                  </div>
-                ) : null}
 
                 {error ? <p className="mt-3 text-[12px] font-semibold text-red-600">{error}</p> : null}
                 {message ? <p className="mt-3 text-[12px] font-semibold text-emerald-600">{message}</p> : null}
@@ -373,11 +450,6 @@ export default function BusinessFunctionsSetupPage() {
                       <div key={item.id} className="flex items-center justify-between rounded-xl border border-[#E8E5F0] bg-[#FAFAFA] px-4 py-3">
                         <div className="min-w-0">
                           <p className="truncate text-[13px] font-black text-[#0F0F1A]">{item.name}</p>
-                          {selectedType === "shifts" && item.startTime && item.endTime ? (
-                            <p className="mt-0.5 text-[11px] font-semibold text-[#9CA3AF]">
-                              {item.startTime} - {item.endTime}
-                            </p>
-                          ) : null}
                         </div>
                         <button
                           type="button"

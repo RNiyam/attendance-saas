@@ -42,10 +42,13 @@ export const designations = pgTable(
     organizationId: integer("organization_id")
       .notNull()
       .references(() => organizations.id, { onDelete: "cascade" }),
+    departmentId: integer("department_id")
+      .notNull()
+      .references(() => departments.id, { onDelete: "cascade" }),
     title: varchar("title", { length: 150 }).notNull(),
     level: varchar("level", { length: 64 }),
     createdAt: createdAtCol(),
     updatedAt: updatedAtCol(),
   },
-  (t) => [uniqueIndex("designations_org_title_uidx").on(t.organizationId, t.title)],
+  (t) => [uniqueIndex("designations_org_dept_title_uidx").on(t.organizationId, t.departmentId, t.title)],
 );

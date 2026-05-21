@@ -28,8 +28,7 @@ const businessFunctionValueIdSchema = z.coerce.number().int().positive();
 
 const businessFunctionValueSchema = z.object({
   name: z.string().trim().min(2).max(150),
-  startTime: z.string().regex(/^\d{2}:\d{2}(:\d{2})?$/).optional(),
-  endTime: z.string().regex(/^\d{2}:\d{2}(:\d{2})?$/).optional(),
+  departmentId: z.number().int().positive().optional(),
 });
 
 const onboardingProfileSchema = z.object({
@@ -96,6 +95,15 @@ router.patch("/onboarding", async (req: AuthedRequest, res, next) => {
   }
 });
 
+router.get("/business-functions/predefined", async (req: AuthedRequest, res, next) => {
+  try {
+    const predefined = organizationService.getPredefinedBusinessFunctions();
+    res.json(predefined);
+  } catch (e) {
+    next(e);
+  }
+});
+
 router.get("/business-functions", async (req: AuthedRequest, res, next) => {
   try {
     const data = await organizationService.listBusinessFunctions(req.user!.organizationId);
@@ -133,11 +141,10 @@ router.post("/business-functions/:type/values", async (req: AuthedRequest, res, 
   try {
     const type = businessFunctionTypeSchema.parse(req.params.type);
     const body = businessFunctionValueSchema.parse(req.body);
-    const data = await organizationService.createBusinessFunctionValue(req.user!.organizationId, type, {
-      ...body,
-      startTime: body.startTime?.length === 5 ? `${body.startTime}:00` : body.startTime,
-      endTime: body.endTime?.length === 5 ? `${body.endTime}:00` : body.endTime,
-    });
+    if (type === "designations" && !body.departmentId) {
+      return res.status(400).json({ error: "Department is required for designations" });
+    }
+    const data = await organizationService.createBusinessFunctionValue(req.user!.organizationId, type, body);
     res.status(201).json(data);
   } catch (e) {
     next(e);
