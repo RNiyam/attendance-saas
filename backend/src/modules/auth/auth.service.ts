@@ -14,7 +14,7 @@ import {
 } from "../../database/schema/index";
 import { getEnv } from "../../config/env";
 import { writeActivityLog } from "../../utils/audit";
-import { sendWelcomeEmail } from "../email/email.service";
+import { sendWelcomeEmail, sendOnboardingRoleWelcomeEmail } from "../email/email.service";
 import { INDIAN_STATES, listCitiesForState } from "../reference/india-geo.data";
 import { findSector } from "../reference/sectors.data";
 
@@ -883,4 +883,16 @@ export async function saveOnboardingProfile(organizationId: number, userId: numb
     activityType: "onboarding.profile_completed",
     metadata: { sector: input.sectorName, role: rbacName },
   });
+
+  const [user] = await db.select().from(users).where(eq(users.id, userId)).limit(1);
+  if (user) {
+    void sendOnboardingRoleWelcomeEmail({
+      organizationId,
+      to: input.businessEmail.trim().toLowerCase(),
+      userName: firstName,
+      organizationName: input.businessName.trim(),
+      role: rbacName,
+      loginUrl: `${getEnv().APP_URL}/login`,
+    }).catch((e) => console.error("[onboarding] role welcome email failed:", e));
+  }
 }

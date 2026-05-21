@@ -33,6 +33,15 @@ export function clearAuthSession() {
   localStorage.removeItem("accessToken");
   localStorage.removeItem("refreshToken");
   localStorage.removeItem("organizationCode");
+  
+  // Clear all local setup progress flags so a new user starts fresh
+  for (let i = 0; i < localStorage.length; i++) {
+    const key = localStorage.key(i);
+    if (key?.startsWith("setup:")) {
+      localStorage.removeItem(key);
+      i--; // Adjust index since we removed an item
+    }
+  }
 }
 
 /** Revokes refresh session on the server and clears local auth tokens. */

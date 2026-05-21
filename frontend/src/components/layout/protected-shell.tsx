@@ -200,7 +200,6 @@ export function ProtectedShell({ children }: ProtectedShellProps) {
                 <p className="hidden truncate text-[11px] font-medium text-[#6B6B80] sm:block">{user.email}</p>
               </div>
             </div>
-            <LogoutControl variant="compact" />
           </div>
         </nav>
 
@@ -223,16 +222,16 @@ export function ProtectedShell({ children }: ProtectedShellProps) {
         <div className="fixed right-3 top-3 z-40 md:hidden">
           <LogoutControl variant="compact" />
         </div>
-        <Sidebar role={dashboardRole} permissions={me.permissions} variant="hover" />
+        <Sidebar role={dashboardRole} permissions={me.permissions} />
         <main className="min-h-screen pl-0 pt-12 md:pt-0 md:pl-16">{children}</main>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-background md:flex">
+    <div className="min-h-screen bg-[#F8FAFC] text-[#0F0F1A]">
       <Sidebar role={dashboardRole} permissions={me.permissions} />
-      <div className="flex min-h-screen flex-1 flex-col">
+      <div className="flex min-h-screen flex-1 flex-col pl-0 pt-12 md:pt-0 md:pl-16">
         <Navbar userName={dashboardUser.name} role={dashboardRole} />
         <main className="flex-1 p-4 md:p-6">{children}</main>
       </div>

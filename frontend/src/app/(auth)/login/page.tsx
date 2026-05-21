@@ -40,7 +40,17 @@ export default function LoginPage() {
         );
         return;
       }
-      if (data?.accessToken) localStorage.setItem("accessToken", data.accessToken);
+      if (data?.accessToken) {
+        localStorage.setItem("accessToken", data.accessToken);
+        // Clear any stale setup progress from a previous user's session
+        for (let i = 0; i < localStorage.length; i++) {
+          const key = localStorage.key(i);
+          if (key?.startsWith("setup:")) {
+            localStorage.removeItem(key);
+            i--; // Adjust index since we removed an item
+          }
+        }
+      }
       if (data?.refreshToken) localStorage.setItem("refreshToken", data.refreshToken);
       if (orgSlug) localStorage.setItem("organizationCode", orgSlug);
       router.push("/onboarding");

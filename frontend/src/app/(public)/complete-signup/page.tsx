@@ -9,6 +9,11 @@ import { apiBaseUrl } from "@/services/http";
 function CompleteSignupContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const hasOrganizationSlugFromUrl = useMemo(
+    () => Boolean((searchParams.get("org") ?? "").trim()),
+    [searchParams]
+  );
+
   const [submitting, setSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [showTemporaryPassword, setShowTemporaryPassword] = useState(false);
@@ -65,7 +70,17 @@ function CompleteSignupContent() {
         setErrorMessage(data?.error ?? "Could not complete password setup.");
         return;
       }
-      if (data?.accessToken) localStorage.setItem("accessToken", data.accessToken);
+      if (data?.accessToken) {
+        localStorage.setItem("accessToken", data.accessToken);
+        // Clear any stale setup progress from a previous user's session
+        for (let i = 0; i < localStorage.length; i++) {
+          const key = localStorage.key(i);
+          if (key?.startsWith("setup:")) {
+            localStorage.removeItem(key);
+            i--; // Adjust index since we removed an item
+          }
+        }
+      }
       if (data?.refreshToken) localStorage.setItem("refreshToken", data.refreshToken);
       if (data?.organization?.slug) localStorage.setItem("organizationCode", data.organization.slug);
       router.push("/onboarding");
@@ -189,33 +204,33 @@ function CompleteSignupContent() {
                 placeholder: "Create a strong password",
                 autoComplete: "new-password",
               },
-            ].map((field) => (
+            ]
+              .filter((field) => !(field.name === "organizationSlug" && hasOrganizationSlugFromUrl))
+              .map((field) => (
               <label key={field.name} className="block">
                 <span className="mb-1.5 block text-[10.5px] font-bold uppercase tracking-wider text-[#9CA3AF]">
                   {field.label}
                 </span>
-                <div className="relative">
-                  <input
-                    name={field.name}
-                    type={
-                      field.name === "temporaryPassword" && showTemporaryPassword
-                        ? "text"
-                        : field.name === "newPassword" && showNewPassword
+                {field.name === "temporaryPassword" || field.name === "newPassword" ? (
+                  <div className="relative">
+                    <input
+                      name={field.name}
+                      type={
+                        field.name === "temporaryPassword" && showTemporaryPassword
                           ? "text"
-                          : field.type
-                    }
-                    value={form[field.name as keyof typeof form]}
-                    onChange={(e) => setForm((prev) => ({ ...prev, [field.name]: e.target.value }))}
-                    placeholder={field.placeholder}
-                    autoComplete={field.autoComplete}
-                    data-1p-ignore={field.name === "temporaryPassword" ? "true" : undefined}
-                    data-bwignore={field.name === "temporaryPassword" ? "true" : undefined}
-                    data-lpignore={field.name === "temporaryPassword" ? "true" : undefined}
-                    className={`${inputClass} ${
-                      field.name === "temporaryPassword" || field.name === "newPassword" ? "pr-11" : ""
-                    }`}
-                  />
-                  {field.name === "temporaryPassword" || field.name === "newPassword" ? (
+                          : field.name === "newPassword" && showNewPassword
+                            ? "text"
+                            : field.type
+                      }
+                      value={form[field.name as keyof typeof form]}
+                      onChange={(e) => setForm((prev) => ({ ...prev, [field.name]: e.target.value }))}
+                      placeholder={field.placeholder}
+                      autoComplete={field.autoComplete}
+                      data-1p-ignore={field.name === "temporaryPassword" ? "true" : undefined}
+                      data-bwignore={field.name === "temporaryPassword" ? "true" : undefined}
+                      data-lpignore={field.name === "temporaryPassword" ? "true" : undefined}
+                      className={`${inputClass} pr-11`}
+                    />
                     <button
                       type="button"
                       onClick={() =>
@@ -240,14 +255,25 @@ function CompleteSignupContent() {
                         <Eye className="h-4 w-4" />
                       )}
                     </button>
-                  ) : null}
-                </div>
+                  </div>
+                ) : (
+                  <input
+                    name={field.name}
+                    type={field.type}
+                    value={form[field.name as keyof typeof form]}
+                    onChange={(e) => setForm((prev) => ({ ...prev, [field.name]: e.target.value }))}
+                    placeholder={field.placeholder}
+                    autoComplete={field.autoComplete}
+                    className={inputClass}
+                  />
+                )}
               </label>
             ))}
 
             {form.newPassword ? (
               <div className="space-y-2 rounded-xl border border-[#E8E5F0] bg-[#FAFAFA] p-3.5 text-xs">
                 <p className="font-bold text-[#0F0F1A]">Password must contain:</p>
+                <div className="grid grid-cols-2 gap-x-4 gap-y-2">
                 {[
                   { label: "At least 8 characters", met: passwordChecks.min8 },
                   { label: "At least one capital letter", met: passwordChecks.upper },
@@ -272,6 +298,7 @@ function CompleteSignupContent() {
                     {label}
                   </div>
                 ))}
+                </div>
               </div>
             ) : null}
 

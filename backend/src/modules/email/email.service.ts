@@ -6,6 +6,7 @@ import type {
   SendEmailInput,
   SendEmailResult,
   WelcomeEmailParams,
+  OnboardingRoleWelcomeEmailParams,
 } from "./types";
 
 /**
@@ -96,5 +97,23 @@ export async function sendPasswordResetEmail(
     subject: "Reset your password",
     html,
     text: `Hi ${params.userName}, reset your password (link expires in ${params.expiresInMinutes} minutes): ${params.resetUrl}`,
+  });
+}
+
+export async function sendOnboardingRoleWelcomeEmail(
+  params: OnboardingRoleWelcomeEmailParams,
+): Promise<SendEmailResult> {
+  const html = await renderTemplate("role-welcome", {
+    userName: params.userName,
+    organizationName: params.organizationName,
+    role: params.role,
+    loginUrl: params.loginUrl,
+  });
+  return sendEmail({
+    organizationId: params.organizationId,
+    to: params.to,
+    subject: `Welcome to ${params.organizationName}!`,
+    html,
+    text: `Hi ${params.userName}, you've successfully set up your profile for ${params.organizationName}. You have been assigned the ${params.role} role. Access your dashboard here: ${params.loginUrl}`,
   });
 }

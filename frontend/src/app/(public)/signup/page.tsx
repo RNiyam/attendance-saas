@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertCircle } from "lucide-react";
+import { AlertCircle, Check } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -563,31 +563,33 @@ export default function SignupPage() {
                 <label className="mb-1.5 block text-[10.5px] font-bold uppercase tracking-wider text-[#9CA3AF] sm:text-[11px]">
                   Organization name
                 </label>
-                <input
-                  name="orgName"
-                  autoComplete="organization"
-                  value={form.orgName}
-                  onChange={(e) => setForm((prev) => ({ ...prev, orgName: e.target.value }))}
-                  placeholder="Acme Pvt Ltd"
-                  className={inputClass(showOrgError)}
-                />
+                <div className="flex items-center gap-2">
+                  <div className="min-w-0 flex-1">
+                    <input
+                      name="orgName"
+                      autoComplete="organization"
+                      value={form.orgName}
+                      onChange={(e) => setForm((prev) => ({ ...prev, orgName: e.target.value }))}
+                      placeholder="Acme Pvt Ltd"
+                      className={inputClass(showOrgError)}
+                    />
+                  </div>
+                  {form.orgName.trim() && organizationCodePreview && !loadingOrganizationCode ? (
+                    <div
+                      className="flex shrink-0 items-center justify-center"
+                      role="status"
+                      aria-label="Organization name is ready"
+                    >
+                      <span className="flex h-7 w-7 items-center justify-center rounded-full bg-[#BBF7D0] text-[#166534]">
+                        <Check className="h-3.5 w-3.5" strokeWidth={2.5} aria-hidden />
+                      </span>
+                    </div>
+                  ) : null}
+                </div>
                 {showOrgError ? (
                   <p className="mt-2 flex items-center gap-1.5 text-[12px] font-medium text-red-600">
                     <AlertCircle className="h-3.5 w-3.5 shrink-0" />
                     {fieldErrors.orgName}
-                  </p>
-                ) : null}
-                {form.orgName.trim() ? (
-                  <p
-                    className="mt-2 select-none text-[11px] leading-relaxed text-[#6B6B80] sm:text-[12px]"
-                    onCopy={(e) => e.preventDefault()}
-                    onCut={(e) => e.preventDefault()}
-                    onContextMenu={(e) => e.preventDefault()}
-                  >
-                    Organization code preview:{" "}
-                    <span className="font-mono font-semibold tracking-wide text-[#0F0F1A]">
-                      {loadingOrganizationCode ? "Generating..." : organizationCodePreview || "Generating..."}
-                    </span>
                   </p>
                 ) : null}
               </div>

@@ -332,13 +332,6 @@ export default function OnboardingPage() {
 
       {tab === "business" ? (
         <div className="space-y-5 rounded-2xl border border-[#E8E5F0] bg-white p-6 shadow-lg shadow-black/[0.04] sm:p-8">
-          {organizationCode ? (
-            <div className="rounded-xl border border-[#E8E5F0] bg-[#FAFAFA] px-4 py-3">
-              <p className="text-[10.5px] font-bold uppercase tracking-wider text-[#9CA3AF]">Organization Code</p>
-              <p className="mt-1 font-mono text-[16px] font-black tracking-wide text-[#0F0F1A]">{organizationCode}</p>
-            </div>
-          ) : null}
-
           <label className="block">
             <span className="mb-1.5 block text-[10.5px] font-bold uppercase tracking-wider text-[#9CA3AF]">
               Business Name <span className="text-red-500">*</span>
