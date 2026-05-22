@@ -2,13 +2,18 @@ import { StatusBar } from 'expo-status-bar';
 import { useState } from 'react';
 import { Button, StyleSheet, Text, View } from 'react-native';
 
-import AttendanceScreen from '@/screens/AttendanceScreen';
-import FaceRegistrationScreen from '@/screens/FaceRegistrationScreen';
+import SplashScreen from './src/screens/SplashScreen';
+import AttendanceScreen from './src/screens/AttendanceScreen';
+import FaceRegistrationScreen from './src/screens/FaceRegistrationScreen';
 
-type ScreenName = 'Home' | 'Register' | 'Attendance';
+type ScreenName = 'Splash' | 'Home' | 'Register' | 'Attendance';
 
-export default function HomeScreen() {
-  const [currentScreen, setCurrentScreen] = useState<ScreenName>('Home');
+export default function App() {
+  const [currentScreen, setCurrentScreen] = useState<ScreenName>('Splash');
+
+  if (currentScreen === 'Splash') {
+    return <SplashScreen onFinish={() => setCurrentScreen('Home')} />;
+  }
 
   if (currentScreen === 'Register') {
     return <FaceRegistrationScreen onBack={() => setCurrentScreen('Home')} />;
