@@ -11,6 +11,7 @@ import {
   employeeOnboardingInvites,
   employeeSalaryTemplateAssignments,
   employeeShiftAssignments,
+  employeeFaces,
   employees,
   holidayTemplateAssignments,
   holidayTemplates,
@@ -416,4 +417,31 @@ export async function getEmployeeById(organizationId: number, employeeId: number
     .where(and(eq(employees.organizationId, organizationId), eq(employees.id, employeeId)))
     .limit(1);
   return row ?? null;
+}
+
+export async function registerEmployeeFace(organizationId: number, employeeId: number, embedding: number[], imageUrl?: string) {
+  // Check if employee exists
+  const employee = await getEmployeeById(organizationId, employeeId);
+  if (!employee) {
+    throw new Error("Employee not found");
+  }
+
+  await db.transaction(async (tx) => {
+    // Insert or update face
+    await tx.insert(employeeFaces).values({
+      organizationId,
+      employeeId,
+      embedding,
+      imageUrl,
+    });
+
+    if (imageUrl) {
+      await tx
+        .update(employees)
+        .set({ profileImageUrl: imageUrl })
+        .where(eq(employees.id, employeeId));
+    }
+  });
+
+  return { success: true };
 }

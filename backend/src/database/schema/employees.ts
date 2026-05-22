@@ -1,4 +1,4 @@
-import { integer, numeric, pgTable, text, uniqueIndex, varchar } from "drizzle-orm/pg-core";
+import { integer, numeric, pgTable, text, uniqueIndex, varchar, jsonb } from "drizzle-orm/pg-core";
 import {
   addressTypeEnum,
   billingCycleEnum,
@@ -112,3 +112,17 @@ export const employeeAddresses = pgTable("employee_addresses", {
   createdAt: createdAtCol(),
   updatedAt: updatedAtCol(),
 });
+
+export const employeeFaces = pgTable("employee_faces", {
+  id: tableId(),
+  organizationId: integer("organization_id")
+    .notNull()
+    .references(() => organizations.id, { onDelete: "cascade" }),
+  employeeId: integer("employee_id")
+    .notNull()
+    .references(() => employees.id, { onDelete: "cascade" }),
+  embedding: jsonb("embedding"),
+  imageUrl: varchar("image_url", { length: 1024 }),
+  createdAt: createdAtCol(),
+});
+

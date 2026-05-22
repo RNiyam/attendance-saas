@@ -8,7 +8,7 @@ import { apiBaseUrl } from "@/services/http";
 
 export default function LoginPage() {
   const router = useRouter();
-  const [email, setEmail] = useState("");
+  const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -18,13 +18,13 @@ export default function LoginPage() {
     e.preventDefault();
     setSubmitting(true);
     setErrorMessage(null);
-    const normalizedEmail = email.trim().toLowerCase();
+    const normalizedEmail = identifier.trim().toLowerCase();
     try {
       const response = await fetch(`${apiBaseUrl}/api/auth/login`, {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
-          email: normalizedEmail,
+          identifier: normalizedEmail,
           password,
         }),
       });
@@ -99,29 +99,29 @@ export default function LoginPage() {
           <div className="mb-8 lg:mb-10">
             <h2 className="text-[28px] font-black tracking-[-0.03em] text-[#0F0F1A] sm:text-[32px]">Sign in</h2>
             <p className="mt-2 text-[14px] leading-relaxed text-[#6B6B80]">
-              Use your work email and password. No organization code needed.
+              Use your work email or your first name. No organization code needed.
             </p>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-5">
             <div>
               <label
-                htmlFor="email"
+                htmlFor="identifier"
                 className="mb-2 block text-[10.5px] font-bold uppercase tracking-wider text-[#9CA3AF]"
               >
-                Work email
+                Work email or Name
               </label>
               <div className="relative">
                 <Mail className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-[#9CA3AF]" />
                 <input
-                  id="email"
-                  name="email"
-                  type="email"
-                  autoComplete="email"
+                  id="identifier"
+                  name="identifier"
+                  type="text"
+                  autoComplete="username"
                   required
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="you@company.com"
+                  value={identifier}
+                  onChange={(e) => setIdentifier(e.target.value)}
+                  placeholder="you@company.com or John"
                   className={inputClass}
                 />
               </div>

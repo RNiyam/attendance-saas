@@ -37,7 +37,7 @@ const passwordSchema = z
   }, "Password must contain at least three of: lowercase, uppercase, number, special character");
 
 const loginSchema = z.object({
-  email: z.string().email(),
+  identifier: z.string().min(1),
   password: z.string().min(1),
 });
 

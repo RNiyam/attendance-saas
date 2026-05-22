@@ -468,7 +468,7 @@ export default function AttendanceTemplateDetailPage() {
 
               <Tile
                 title="Working hours"
-                subtitle={`${optionLabel(options.effectiveWorkingHourRules, template.effectiveWorkingHourRule)} · ${template.halfDayAfterMinutes} min`}
+                subtitle={optionLabel(options.effectiveWorkingHourRules, template.effectiveWorkingHourRule)}
                 active={Boolean(template.effectiveWorkingHourRule)}
                 icon={Ruler}
                 selected={activePanel === "workingHours"}
@@ -629,28 +629,29 @@ export default function AttendanceTemplateDetailPage() {
               ) : null}
 
               {activePanel === "workingHours" ? (
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <SelectField
-                    label="Set Rule"
-                    value={template.effectiveWorkingHourRule}
-                    options={options.effectiveWorkingHourRules}
-                    onChange={(effectiveWorkingHourRule) => patchTemplate({ effectiveWorkingHourRule })}
-                  />
-                  <NumberField
-                    label="Late after mins"
-                    value={template.lateAfterMinutes}
-                    onChange={(lateAfterMinutes) => patchTemplate({ lateAfterMinutes })}
-                  />
-                  <NumberField
-                    label="Half-day after mins"
-                    value={template.halfDayAfterMinutes}
-                    onChange={(halfDayAfterMinutes) => patchTemplate({ halfDayAfterMinutes })}
-                  />
-                  <NumberField
-                    label="Overtime after mins"
-                    value={template.overtimeAfterMinutes}
-                    onChange={(overtimeAfterMinutes) => patchTemplate({ overtimeAfterMinutes })}
-                  />
+                <div className="space-y-3">
+                  {options.effectiveWorkingHourRules.map((option) => (
+                    <button
+                      key={option.value}
+                      type="button"
+                      onClick={() => patchTemplate({ effectiveWorkingHourRule: option.value })}
+                      className={`w-full rounded-xl border px-4 py-3 text-left transition ${
+                        template.effectiveWorkingHourRule === option.value
+                          ? "border-[#4F7FFF] bg-[#EFF6FF]"
+                          : "border-[#E2E8F0] bg-white hover:border-[#AFC4FF]"
+                      }`}
+                    >
+                      <div className="flex items-start gap-3">
+                        <div className={`mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full border ${template.effectiveWorkingHourRule === option.value ? "border-[#4F7FFF]" : "border-[#D0D7E2]"}`}>
+                          {template.effectiveWorkingHourRule === option.value && <div className="h-2 w-2 rounded-full bg-[#4F7FFF]" />}
+                        </div>
+                        <div className="flex-1">
+                          <p className="text-[14px] font-black text-[#0F0F1A]">{option.label}</p>
+                          <p className="mt-1 text-[12px] font-medium leading-5 text-[#667085]">{option.description}</p>
+                        </div>
+                      </div>
+                    </button>
+                  ))}
                 </div>
               ) : null}
             </div>

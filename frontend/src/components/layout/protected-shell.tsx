@@ -10,7 +10,7 @@ import { apiBaseUrl, clearAuthSession } from "@/services/http";
 import type { UserRole } from "@/types/rbac";
 
 type MeResponse = {
-  user: { id: number; email: string; organizationId: number; phone: string | null };
+  user: { id: number; email: string; organizationId: number; phone: string | null; profileImageUrl?: string | null };
   organization: {
     id: number;
     name: string;
@@ -50,6 +50,7 @@ export function ProtectedShell({ children }: ProtectedShellProps) {
   const [apiError, setApiError] = useState<string | null>(null);
   /** When set (including empty string), Personal tab overrides the nav name until cleared. */
   const [headerNamePreview, setHeaderNamePreview] = useState<string | undefined>(undefined);
+  const [headerEmailPreview, setHeaderEmailPreview] = useState<string | undefined>(undefined);
 
   const loadMe = useCallback(async () => {
     setApiError(null);
@@ -82,8 +83,9 @@ export function ProtectedShell({ children }: ProtectedShellProps) {
 
   useEffect(() => {
     const onPreview = (e: Event) => {
-      const p = (e as CustomEvent<{ preview: string | null }>).detail?.preview;
-      setHeaderNamePreview(p === null ? undefined : p);
+      const detail = (e as CustomEvent<{ preview: string | null; emailPreview?: string | null }>).detail;
+      setHeaderNamePreview(detail?.preview === null ? undefined : detail?.preview);
+      setHeaderEmailPreview(detail?.emailPreview === null ? undefined : detail?.emailPreview);
     };
     window.addEventListener(ONBOARDING_HEADER_NAME_EVENT, onPreview);
     return () => window.removeEventListener(ONBOARDING_HEADER_NAME_EVENT, onPreview);
@@ -115,7 +117,10 @@ export function ProtectedShell({ children }: ProtectedShellProps) {
   useEffect(() => {
     const onOnboarding = pathname === "/onboarding" || pathname.startsWith("/onboarding/");
     if (!onOnboarding) {
-      const t = window.setTimeout(() => setHeaderNamePreview(undefined), 0);
+      const t = window.setTimeout(() => {
+        setHeaderNamePreview(undefined);
+        setHeaderEmailPreview(undefined);
+      }, 0);
       return () => window.clearTimeout(t);
     }
   }, [pathname]);
@@ -155,10 +160,15 @@ export function ProtectedShell({ children }: ProtectedShellProps) {
       ? headerNamePreview.trim() || me.displayName
       : me.displayName;
 
+  const resolvedEmail =
+    isOnboarding && headerEmailPreview !== undefined
+      ? headerEmailPreview.trim() || me.user.email
+      : me.user.email;
+
   const user = {
     id: String(me.user.id),
     name: resolvedDisplayName.trim() || me.displayName.trim() || me.user.email.split("@")[0] || "User",
-    email: me.user.email,
+    email: resolvedEmail,
     role: toRole(me.role),
   };
 
@@ -214,6 +224,7 @@ export function ProtectedShell({ children }: ProtectedShellProps) {
     name: me.displayName.trim() || me.user.email.split("@")[0] || me.displayName,
     email: me.user.email,
     role: dashboardRole,
+    avatar: me.user.profileImageUrl,
   };
 
   if (isSetup) {
@@ -232,7 +243,7 @@ export function ProtectedShell({ children }: ProtectedShellProps) {
     <div className="min-h-screen bg-[#F8FAFC] text-[#0F0F1A]">
       <Sidebar role={dashboardRole} permissions={me.permissions} />
       <div className="flex min-h-screen flex-1 flex-col pl-0 pt-12 md:pt-0 md:pl-16">
-        <Navbar userName={dashboardUser.name} role={dashboardRole} />
+        <Navbar userName={dashboardUser.name} role={dashboardRole} avatar={dashboardUser.avatar} />
         <main className="flex-1 p-4 md:p-6">{children}</main>
       </div>
     </div>

@@ -21,6 +21,7 @@ const departmentSchema = z.object({
 const designationSchema = z.object({
   title: z.string().min(2).max(150),
   level: z.string().max(64).optional(),
+  departmentId: z.number().int().positive(),
 });
 
 const businessFunctionTypeSchema = z.enum(["departments", "designations", "shifts"]);
@@ -88,8 +89,8 @@ router.patch("/payroll-defaults", async (req: AuthedRequest, res, next) => {
 router.patch("/onboarding", async (req: AuthedRequest, res, next) => {
   try {
     const body = onboardingProfileSchema.parse(req.body);
-    await authService.saveOnboardingProfile(req.user!.organizationId, req.user!.id, body);
-    res.json({ ok: true });
+    const result = await authService.saveOnboardingProfile(req.user!.organizationId, req.user!.id, body);
+    res.json({ success: true, employeeId: result.employeeId });
   } catch (e) {
     next(e);
   }

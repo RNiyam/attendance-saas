@@ -47,6 +47,7 @@ export const attendanceEvents = pgTable("attendance_events", {
   eventType: attendanceEventTypeEnum("event_type").notNull(),
   eventTime: timestamp("event_time", { mode: "date" }).notNull(),
   source: varchar("source", { length: 30 }).notNull().default("mobile"),
+  selfieUrl: varchar("selfie_url", { length: 1024 }),
   metadata: text("metadata"),
   createdAt: createdAtCol(),
 });

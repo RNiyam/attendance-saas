@@ -2,6 +2,10 @@ import { Router } from "express";
 import { z } from "zod";
 import { authMiddleware, requirePermission, resolvePermissions, type AuthedRequest } from "../../middleware/auth";
 import * as employeesService from "./employees.service";
+import { uploadBase64ToS3 } from "./s3.utils";
+import { db } from "../../database";
+import { employees } from "../../database/schema";
+import { eq } from "drizzle-orm";
 
 const router = Router();
 
@@ -136,6 +140,43 @@ router.get("/:id", requirePermission("VIEW_EMPLOYEE"), async (req: AuthedRequest
       return;
     }
     res.json(result);
+  } catch (e) {
+    next(e);
+  }
+});
+
+const registerFaceSchema = z.object({
+  embedding: z.array(z.number()),
+  base64Image: z.string().optional(),
+});
+
+router.post("/:id/face", async (req: AuthedRequest, res, next) => {
+  try {
+    const employeeId = Number(req.params.id);
+    if (!Number.isFinite(employeeId)) {
+      res.status(400).json({ error: "Invalid employee id" });
+      return;
+    }
+
+    const [emp] = await db.select({ userId: employees.userId }).from(employees).where(eq(employees.id, employeeId)).limit(1);
+    if (!emp) {
+      res.status(404).json({ error: "Employee not found" });
+      return;
+    }
+
+    if (emp.userId !== req.user!.id && !req.user!.permissions.includes("EDIT_EMPLOYEE")) {
+      res.status(403).json({ error: "Missing permission: EDIT_EMPLOYEE" });
+      return;
+    }
+    const body = registerFaceSchema.parse(req.body);
+    
+    let imageUrl: string | undefined;
+    if (body.base64Image) {
+      imageUrl = await uploadBase64ToS3(body.base64Image);
+    }
+
+    const result = await employeesService.registerEmployeeFace(req.user!.organizationId, employeeId, body.embedding, imageUrl);
+    res.status(201).json(result);
   } catch (e) {
     next(e);
   }

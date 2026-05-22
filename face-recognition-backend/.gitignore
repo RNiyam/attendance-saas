@@ -1,0 +1,46 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Virtual environments
+venv/
+.venv/
+env/
+.env/
+
+# Local environment
+.env
+.env.*
+!.env.example
+
+# Runtime uploads and generated face data
+faces/
+uploads/
+*.jpg
+*.jpeg
+*.png
+
+# Model and ML caches
+models/
+.insightface/
+~/.insightface/
+*.onnx
+*.pt
+*.pth
+*.pkl
+
+# Logs and local databases
+*.log
+*.sqlite
+*.sqlite3
+
+# OS and editor files
+.DS_Store
+.idea/
+.vscode/
