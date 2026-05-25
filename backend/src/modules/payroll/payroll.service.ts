@@ -130,7 +130,8 @@ export async function runPayroll(input: { organizationId: number; payrollCycleId
         netAmount: String(net.toFixed(2)),
         status: "draft",
       })
-      .onDuplicateKeyUpdate({
+      .onConflictDoUpdate({
+        target: [payslips.organizationId, payslips.employeeId, payslips.payrollCycleId],
         set: {
           grossAmount: String(finalGross.toFixed(2)),
           deductionAmount: String(deduction.toFixed(2)),

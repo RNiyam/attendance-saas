@@ -1,22 +1,23 @@
 import {
   boolean,
   index,
-  int,
-  mysqlTable,
+  integer,
+  pgTable,
   primaryKey,
   text,
   uniqueIndex,
   varchar,
-} from "drizzle-orm/mysql-core";
+} from "drizzle-orm/pg-core";
+import { tableId } from "../pg-columns";
 import { organizations } from "./organizations";
 import { users } from "./users";
 
 /** Tenant-scoped role definitions (HR, Manager, etc.). */
-export const roles = mysqlTable(
+export const roles = pgTable(
   "roles",
   {
-    id: int("id").autoincrement().primaryKey(),
-    organizationId: int("organization_id")
+    id: tableId(),
+    organizationId: integer("organization_id")
       .notNull()
       .references(() => organizations.id, { onDelete: "cascade" }),
     name: varchar("name", { length: 100 }).notNull(),
@@ -27,20 +28,20 @@ export const roles = mysqlTable(
 );
 
 /** Global permission catalog (codes are stable across all tenants). */
-export const permissions = mysqlTable("permissions", {
-  id: int("id").autoincrement().primaryKey(),
+export const permissions = pgTable("permissions", {
+  id: tableId(),
   code: varchar("code", { length: 128 }).notNull().unique(),
   module: varchar("module", { length: 64 }).notNull(),
   description: text("description"),
 });
 
-export const rolePermissions = mysqlTable(
+export const rolePermissions = pgTable(
   "role_permissions",
   {
-    roleId: int("role_id")
+    roleId: integer("role_id")
       .notNull()
       .references(() => roles.id, { onDelete: "cascade" }),
-    permissionId: int("permission_id")
+    permissionId: integer("permission_id")
       .notNull()
       .references(() => permissions.id, { onDelete: "cascade" }),
   },
@@ -50,13 +51,13 @@ export const rolePermissions = mysqlTable(
   ],
 );
 
-export const userRoles = mysqlTable(
+export const userRoles = pgTable(
   "user_roles",
   {
-    userId: int("user_id")
+    userId: integer("user_id")
       .notNull()
       .references(() => users.id, { onDelete: "cascade" }),
-    roleId: int("role_id")
+    roleId: integer("role_id")
       .notNull()
       .references(() => roles.id, { onDelete: "cascade" }),
   },

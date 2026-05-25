@@ -16,6 +16,7 @@ import { organizationRouter } from "./modules/organization/organization.routes";
 import { payrollRouter } from "./modules/payroll/payroll.routes";
 import { shiftsRouter } from "./modules/shifts/shifts.routes";
 import { settingsRouter } from "./modules/settings/smtp.routes";
+import { permissionsRouter } from "./modules/settings/permissions.routes";
 import { superAdminRouter } from "./modules/super-admin/super-admin.routes";
 
 export function createApp() {
@@ -23,8 +24,15 @@ export function createApp() {
   /** JSON APIs should not emit weak ETags; clients may reuse 304 with stale bodies. */
   app.set("etag", false);
   app.use(helmet());
-  app.use(cors({ origin: true, credentials: true }));
-  app.use(express.json({ limit: "1mb" }));
+  app.use(
+    cors({
+      origin: true,
+      credentials: true,
+      /** Ensures browser PATCH/fetch with `Authorization: Bearer …` always passes preflight (localhost:3000 → API). */
+      allowedHeaders: ["Content-Type", "Authorization"],
+    }),
+  );
+  app.use(express.json({ limit: "10mb" }));
   app.use(cookieParser());
   app.use(requestContext);
 
@@ -43,6 +51,7 @@ export function createApp() {
   app.use("/api/payroll", rateLimit({ keyPrefix: "rl:payroll", windowSeconds: 60, max: 60 }), payrollRouter);
   app.use("/api/shifts", shiftsRouter);
   app.use("/api/settings", settingsRouter);
+  app.use("/api/settings/permissions", permissionsRouter);
   app.use("/api/super-admin", superAdminRouter);
 
   app.use(errorHandler);

@@ -1,13 +1,12 @@
 import { and, asc, eq } from "drizzle-orm";
 import { db } from "../../database";
 import { platformEnumMasters, refCities, refSectors, refStates, refSubSectors } from "../../database/schema";
-import { ensurePlatformReferenceSeeded } from "../super-admin/platform-reference.seed";
 import { INDIAN_STATES, listCitiesForState } from "./india-geo.data";
 import { findSector, SECTORS } from "./sectors.data";
 
+/** Fast path: read DB only. No auto-seed (seeding thousands of rows to remote Supabase blocks onboarding). */
 export async function listStates() {
   try {
-    await ensurePlatformReferenceSeeded();
     const rows = await db
       .select()
       .from(refStates)
@@ -25,7 +24,6 @@ export async function listStates() {
 export async function listCitiesForStateCode(stateCode: string) {
   const code = stateCode.trim().toUpperCase();
   try {
-    await ensurePlatformReferenceSeeded();
     const [state] = await db.select().from(refStates).where(eq(refStates.code, code)).limit(1);
     if (state) {
       const cities = await db
@@ -48,7 +46,6 @@ export async function listCitiesForStateCode(stateCode: string) {
 
 export async function listSectors() {
   try {
-    await ensurePlatformReferenceSeeded();
     const rows = await db
       .select()
       .from(refSectors)
@@ -66,7 +63,6 @@ export async function listSectors() {
 export async function listSubSectorsForSectorCode(sectorCode: string) {
   const code = sectorCode.trim().toLowerCase();
   try {
-    await ensurePlatformReferenceSeeded();
     const [sector] = await db.select().from(refSectors).where(eq(refSectors.code, code)).limit(1);
     if (sector) {
       const subs = await db
@@ -94,7 +90,6 @@ export async function listSubSectorsForSectorCode(sectorCode: string) {
 
 export async function findSectorByCodeAndName(sectorCode: string, sectorName: string) {
   try {
-    await ensurePlatformReferenceSeeded();
     const [row] = await db.select().from(refSectors).where(eq(refSectors.code, sectorCode.trim().toLowerCase())).limit(1);
     if (row && row.name.toLowerCase() === sectorName.trim().toLowerCase()) {
       const subs = await db
@@ -115,7 +110,6 @@ export async function findSectorByCodeAndName(sectorCode: string, sectorName: st
 
 export async function listEnumsByType(enumType: string) {
   try {
-    await ensurePlatformReferenceSeeded();
     const rows = await db
       .select()
       .from(platformEnumMasters)

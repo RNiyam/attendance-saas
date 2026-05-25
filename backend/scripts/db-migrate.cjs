@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * Runs drizzle-kit migrate after verifying DATABASE_URL is reachable.
- * Parses host/port from mysql://user:pass@host:port/db
+ * Supports postgresql://user:pass@host:port/db
  */
 const fs = require("fs");
 const path = require("path");
@@ -24,13 +24,24 @@ if (!url) {
   process.exit(1);
 }
 
-const m = url.match(/^mysql:\/\/[^@]+@([^/:]+)(?::(\d+))?\//);
-if (!m) {
-  console.error("Could not parse host from DATABASE_URL (expected mysql://user:pass@host:port/db)");
+function parseHostPort(connectionString) {
+  const withoutScheme = connectionString.replace(/^postgres(?:ql)?:\/\//, "");
+  const at = withoutScheme.lastIndexOf("@");
+  if (at === -1) return null;
+  const hostPart = withoutScheme.slice(at + 1);
+  const m = hostPart.match(/^([^/:?]+)(?::(\d+))?/);
+  if (!m) return null;
+  return { host: m[1], port: m[2] ? parseInt(m[2], 10) : 5432 };
+}
+
+const parsed = parseHostPort(url);
+if (!parsed) {
+  console.error(
+    "Could not parse host from DATABASE_URL (expected postgresql://user:pass@host:port/db)",
+  );
   process.exit(1);
 }
-const host = m[1];
-const port = m[2] ? parseInt(m[2], 10) : 3306;
+const { host, port } = parsed;
 
 const ok = new Promise((resolve) => {
   const socket = net.connect({ host, port, timeout: 5000 });
@@ -48,16 +59,12 @@ const ok = new Promise((resolve) => {
 ok.then((reachable) => {
   if (!reachable) {
     console.error(`
-Cannot connect to MySQL at ${host}:${port} (nothing is listening).
+Cannot connect to PostgreSQL at ${host}:${port} (nothing is listening).
 
-Do one of the following:
-  • Start your MySQL server (however you usually run it), then run: npm run db:migrate
-  • Or install Homebrew MySQL on this Mac, then:
-      brew install mysql
-      brew services start mysql
-    Then create the database if needed and keep DATABASE_URL in backend/.env in sync.
+Start PostgreSQL, create the database, then set DATABASE_URL in backend/.env, e.g.:
+  postgresql://postgres:postgres@localhost:5432/attendance_saas
 
-Current DATABASE_URL host: ${host}  port: ${port}
+Then run: npm run db:migrate
 `);
     process.exit(1);
   }

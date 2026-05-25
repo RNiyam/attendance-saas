@@ -8,6 +8,7 @@ import {
   attendancePolicies,
   attendanceRecords,
   employeeShiftAssignments,
+  employeeFaces,
   holidays,
   shiftBreaks,
   shifts,
@@ -20,6 +21,20 @@ function formatUserDisplay(u: { firstName: string | null; lastName: string | nul
   const local = u.email.split("@")[0];
   return local || u.email;
 }
+
+function cosineSimilarity(vecA: number[], vecB: number[]) {
+  let dotProduct = 0;
+  let normA = 0;
+  let normB = 0;
+  for (let i = 0; i < Math.min(vecA.length, vecB.length); i++) {
+    dotProduct += vecA[i] * vecB[i];
+    normA += vecA[i] * vecA[i];
+    normB += vecB[i] * vecB[i];
+  }
+  if (normA === 0 || normB === 0) return 0;
+  return dotProduct / (Math.sqrt(normA) * Math.sqrt(normB));
+}
+
 
 async function userDisplayByIds(userIds: (number | null | undefined)[]): Promise<Map<number, string>> {
   const ids = [...new Set(userIds.filter((x): x is number => typeof x === "number" && x > 0))];
@@ -368,7 +383,28 @@ export async function checkIn(input: {
   organizationId: number;
   employeeId: number;
   source?: "mobile" | "biometric" | "face" | "qr" | "manual";
+  embedding?: number[];
+  selfieUrl?: string;
 }) {
+  if (input.embedding) {
+    const [faceData] = await db
+      .select()
+      .from(employeeFaces)
+      .where(and(eq(employeeFaces.organizationId, input.organizationId), eq(employeeFaces.employeeId, input.employeeId)))
+      .limit(1);
+    
+    if (!faceData || !faceData.embedding) {
+      const err = new Error("No face registered for this employee");
+      (err as { status?: number }).status = 400;
+      throw err;
+    }
+    const sim = cosineSimilarity(faceData.embedding as number[], input.embedding);
+    if (sim < 0.6) {
+      const err = new Error("Face mismatch. Verification failed.");
+      (err as { status?: number }).status = 400;
+      throw err;
+    }
+  }
   const now = new Date();
   const day = toDateOnly(now);
 
@@ -460,13 +496,38 @@ export async function checkIn(input: {
     eventType: "check_in",
     eventTime: now,
     source: input.source ?? "mobile",
+    selfieUrl: input.selfieUrl,
   });
   await invalidateDashCache(input.organizationId);
 
   return { record, policy };
 }
 
-export async function checkOut(input: { organizationId: number; employeeId: number }) {
+export async function checkOut(input: { 
+  organizationId: number; 
+  employeeId: number;
+  embedding?: number[];
+  selfieUrl?: string;
+}) {
+  if (input.embedding) {
+    const [faceData] = await db
+      .select()
+      .from(employeeFaces)
+      .where(and(eq(employeeFaces.organizationId, input.organizationId), eq(employeeFaces.employeeId, input.employeeId)))
+      .limit(1);
+    
+    if (!faceData || !faceData.embedding) {
+      const err = new Error("No face registered for this employee");
+      (err as { status?: number }).status = 400;
+      throw err;
+    }
+    const sim = cosineSimilarity(faceData.embedding as number[], input.embedding);
+    if (sim < 0.6) {
+      const err = new Error("Face mismatch. Verification failed.");
+      (err as { status?: number }).status = 400;
+      throw err;
+    }
+  }
   const now = new Date();
   const day = toDateOnly(now);
 
@@ -527,6 +588,7 @@ export async function checkOut(input: { organizationId: number; employeeId: numb
     eventType: "check_out",
     eventTime: now,
     source: record.attendanceSource,
+    selfieUrl: input.selfieUrl,
   });
   await invalidateDashCache(input.organizationId);
 

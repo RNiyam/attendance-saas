@@ -4,7 +4,7 @@ import Handlebars from "handlebars";
 
 const templatesDir = path.join(__dirname, "templates");
 
-export type TemplateName = "welcome" | "invite" | "reset-password";
+export type TemplateName = "welcome" | "invite" | "reset-password" | "role-welcome";
 
 const cache = new Map<TemplateName, HandlebarsTemplateDelegate>();
 

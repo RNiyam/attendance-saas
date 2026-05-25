@@ -43,3 +43,12 @@ export type PasswordResetEmailParams = {
   resetUrl: string;
   expiresInMinutes: number;
 };
+
+export type OnboardingRoleWelcomeEmailParams = {
+  organizationId?: number;
+  to: string;
+  userName: string;
+  organizationName: string;
+  role: string;
+  loginUrl: string;
+};

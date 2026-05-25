@@ -1,3 +1,4 @@
+import os from "node:os";
 import { createApp } from "./app";
 import { loadEnv, getEnv } from "./config/env";
 import { connectRedis } from "./config/redis";
@@ -5,13 +6,29 @@ import { verifySmtpConnection, smtpConfigured } from "./modules/email/smtp.servi
 import { startNotificationWorker } from "./modules/notifications/notification-queue";
 import { ensureDefaultPlatformAdmin } from "./modules/super-admin/platform-admin.service";
 
+function getLanAddresses(): string[] {
+  const nets = os.networkInterfaces();
+  const ips: string[] = [];
+  for (const entries of Object.values(nets)) {
+    for (const net of entries ?? []) {
+      if (net.family === "IPv4" && !net.internal) ips.push(net.address);
+    }
+  }
+  return ips;
+}
+
 function listenWithFallback(app: ReturnType<typeof createApp>, startPort: number, maxAttempts = 20) {
+  const host = process.env.HOST?.trim() || "0.0.0.0";
+
   const tryPort = (port: number, attemptsLeft: number) => {
-    const server = app.listen(port);
+    const server = app.listen(port, host);
 
     server.once("listening", () => {
-      console.info(`[server] Listening on http://localhost:${port}`);
+      console.info(`[server] Listening on http://localhost:${port} (bind ${host})`);
       console.info(`[server] Health: GET http://localhost:${port}/health`);
+      for (const ip of getLanAddresses()) {
+        console.info(`[server] On your Wi‑Fi/LAN: http://${ip}:${port}`);
+      }
       if (port !== startPort) {
         console.warn(`[server] Preferred port ${startPort} was busy, using ${port}`);
       }

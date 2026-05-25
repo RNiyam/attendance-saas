@@ -1,8 +1,10 @@
 import Link from "next/link";
+import SplashScreen from "@/components/SplashScreen";
 
 export default function LandingPage() {
   return (
     <div className="min-h-screen bg-[#F7F5F0] text-[#1A1A2E] font-sans overflow-hidden">
+      <SplashScreen />
 
       {/* Decorative background */}
       <div className="fixed inset-0 pointer-events-none overflow-hidden">

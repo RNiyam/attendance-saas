@@ -2,6 +2,8 @@
 
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
+import { Camera, Check, Loader2 } from "lucide-react";
+import FaceCapture from "@/components/FaceCapture";
 import { ONBOARDING_HEADER_NAME_EVENT } from "@/components/layout/protected-shell";
 import { apiBaseUrl } from "@/services/http";
 
@@ -45,7 +47,7 @@ function authHeaders(): HeadersInit {
 
 export default function OnboardingPage() {
   const router = useRouter();
-  const [tab, setTab] = useState<"business" | "personal">("business");
+  const [tab, setTab] = useState<"business" | "personal" | "face">("business");
   const [states, setStates] = useState<StateRow[]>([]);
   const [cities, setCities] = useState<CityRow[]>([]);
   const [sectors, setSectors] = useState<SectorRow[]>([]);
@@ -54,6 +56,10 @@ export default function OnboardingPage() {
   const [loadingSubs, setLoadingSubs] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const [createdEmployeeId, setCreatedEmployeeId] = useState<number | null>(null);
+  const [capturingFace, setCapturingFace] = useState(false);
+  const [faceRegistered, setFaceRegistered] = useState(false);
 
   const [organizationCode, setOrganizationCode] = useState("");
   const [businessName, setBusinessName] = useState("");
@@ -73,15 +79,25 @@ export default function OnboardingPage() {
   const [organizationRole, setOrganizationRole] = useState<(typeof ORG_ROLES)[number]["id"] | "">("");
 
   const loadMe = useCallback(async () => {
+    let saved: any = null;
+    if (typeof window !== "undefined") {
+      try {
+        const s = localStorage.getItem("onboarding_draft");
+        if (s) saved = JSON.parse(s);
+      } catch {}
+    }
+
     const res = await fetch(`${apiBaseUrl}/api/auth/me`, { headers: authHeaders() });
     if (!res.ok) return;
     const data = (await res.json()) as MeResponse;
     const org = data.organization;
     const defaultBiz = (org?.legalName && org.legalName.trim()) || org?.name || "";
     setOrganizationCode(org?.slug ?? "");
-    setBusinessName(defaultBiz);
-    setFullName(data.displayName.trim() || "");
-    setBusinessEmail((org?.email ?? data.user.email ?? "").trim());
+
+    setBusinessName(saved?.businessName || defaultBiz);
+    setFullName(saved?.fullName || data.displayName.trim() || "");
+    setBusinessEmail(saved?.businessEmail || (org?.email ?? data.user.email ?? "").trim());
+
     const raw = (data.user.phone ?? "").replace(/\D/g, "");
     let ten = "";
     if (raw.length >= 10) {
@@ -89,9 +105,24 @@ export default function OnboardingPage() {
       else if (raw.length === 10) ten = raw;
       else ten = raw.slice(-10);
     }
-    setAlternatePhoneDigits(ten);
-    setAlternateContactName("");
-    setOrganizationRole("");
+    setAlternatePhoneDigits(saved?.alternatePhoneDigits || ten);
+
+    if (saved) {
+      if (saved.stateCode) setStateCode(saved.stateCode);
+      if (saved.stateName) setStateName(saved.stateName);
+      if (saved.city) setCity(saved.city);
+      if (saved.sectorCode) setSectorCode(saved.sectorCode);
+      if (saved.sectorName) setSectorName(saved.sectorName);
+      if (saved.subSectorCode) setSubSectorCode(saved.subSectorCode);
+      if (saved.subSectorName) setSubSectorName(saved.subSectorName);
+      if (saved.employeeCountBand) setEmployeeCountBand(saved.employeeCountBand);
+      if (saved.alternateContactName) setAlternateContactName(saved.alternateContactName);
+      if (saved.organizationRole) setOrganizationRole(saved.organizationRole);
+      if (saved.tab && saved.tab !== "face") setTab(saved.tab);
+    } else {
+      setAlternateContactName("");
+      setOrganizationRole("");
+    }
   }, []);
 
   useEffect(() => {
@@ -102,15 +133,55 @@ export default function OnboardingPage() {
   }, [loadMe]);
 
   useEffect(() => {
+    if (tab === "face") return;
+    const draft = {
+      tab,
+      businessName,
+      stateCode,
+      stateName,
+      city,
+      sectorCode,
+      sectorName,
+      subSectorCode,
+      subSectorName,
+      employeeCountBand,
+      fullName,
+      businessEmail,
+      alternatePhoneDigits,
+      alternateContactName,
+      organizationRole,
+    };
+    localStorage.setItem("onboarding_draft", JSON.stringify(draft));
+  }, [
+    tab,
+    businessName,
+    stateCode,
+    stateName,
+    city,
+    sectorCode,
+    sectorName,
+    subSectorCode,
+    subSectorName,
+    employeeCountBand,
+    fullName,
+    businessEmail,
+    alternatePhoneDigits,
+    alternateContactName,
+    organizationRole,
+  ]);
+
+  useEffect(() => {
     if (tab !== "personal") {
-      window.dispatchEvent(new CustomEvent(ONBOARDING_HEADER_NAME_EVENT, { detail: { preview: null } }));
+      window.dispatchEvent(new CustomEvent(ONBOARDING_HEADER_NAME_EVENT, { detail: { preview: null, emailPreview: null } }));
       return;
     }
-    window.dispatchEvent(new CustomEvent(ONBOARDING_HEADER_NAME_EVENT, { detail: { preview: fullName } }));
+    window.dispatchEvent(
+      new CustomEvent(ONBOARDING_HEADER_NAME_EVENT, { detail: { preview: fullName, emailPreview: businessEmail } })
+    );
     return () => {
-      window.dispatchEvent(new CustomEvent(ONBOARDING_HEADER_NAME_EVENT, { detail: { preview: null } }));
+      window.dispatchEvent(new CustomEvent(ONBOARDING_HEADER_NAME_EVENT, { detail: { preview: null, emailPreview: null } }));
     };
-  }, [tab, fullName]);
+  }, [tab, fullName, businessEmail]);
 
   useEffect(() => {
     (async () => {
@@ -257,11 +328,64 @@ export default function OnboardingPage() {
         setError(typeof j.error === "string" ? j.error : "Could not save onboarding.");
         return;
       }
-      router.push("/dashboard");
+      localStorage.removeItem("onboarding_draft");
+      if (j.employeeId) {
+        setCreatedEmployeeId(j.employeeId);
+        setTab("face");
+      } else {
+        router.push("/dashboard");
+      }
     } catch {
       setError("Network error while saving.");
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const handleFaceCapture = async (imageSrc: string) => {
+    if (!createdEmployeeId) return;
+    setCapturingFace(true);
+    setError(null);
+    try {
+      const res = await fetch(imageSrc);
+      const blob = await res.blob();
+      const file = new File([blob], "face.jpg", { type: "image/jpeg" });
+
+      const formData = new FormData();
+      formData.append("file", file);
+
+      const fastApiResponse = await fetch("http://127.0.0.1:8000/extract-face", {
+        method: "POST",
+        body: formData,
+      });
+
+      if (!fastApiResponse.ok) {
+        const errorData = await fastApiResponse.json().catch(() => ({}));
+        throw new Error(errorData.detail || "Failed to extract face embedding");
+      }
+
+      const { embedding } = await fastApiResponse.json();
+
+      const saveRes = await fetch(`${apiBaseUrl}/api/employees/${createdEmployeeId}/face`, {
+        method: "POST",
+        headers: authHeaders(),
+        body: JSON.stringify({ embedding, base64Image: imageSrc }),
+      });
+
+      if (!saveRes.ok) {
+        const errorData = await saveRes.json().catch(() => ({}));
+        throw new Error(errorData.error || "Failed to save face to database");
+      }
+
+      setFaceRegistered(true);
+      window.setTimeout(() => {
+        router.push("/dashboard");
+      }, 2500);
+    } catch (e: any) {
+      console.error("Face registration error:", e);
+      setError(e.message || "Failed to register face.");
+    } finally {
+      setCapturingFace(false);
     }
   };
 
@@ -307,22 +431,52 @@ export default function OnboardingPage() {
             <span className="absolute bottom-0 left-0 right-0 h-0.5 rounded-full bg-gradient-to-r from-[#4F7FFF] to-[#7C3AED]" />
           ) : null}
         </button>
-        <button
-          type="button"
-          onClick={() => {
-            if (businessValid) setTab("personal");
-            else setError("Complete business details first.");
-          }}
-          className={`relative flex-1 pb-3 text-[13px] font-semibold transition ${
-            tab === "personal" ? "text-[#4F7FFF]" : "text-[#9CA3AF] hover:text-[#0F0F1A]"
-          }`}
-        >
-          Personal Details
-          {tab === "personal" ? (
-            <span className="absolute bottom-0 left-0 right-0 h-0.5 rounded-full bg-gradient-to-r from-[#4F7FFF] to-[#7C3AED]" />
-          ) : null}
-        </button>
-      </div>
+          <button
+            type="button"
+            onClick={() => {
+              if (businessValid) setTab("personal");
+              else setError("Complete business details first.");
+            }}
+            className={`relative flex flex-1 items-center justify-center gap-2 pb-3 text-[13px] font-semibold transition ${
+              tab === "personal" ? "text-[#4F7FFF]" : "text-[#9CA3AF] hover:text-[#0F0F1A]"
+            }`}
+          >
+            {personalValid ? (
+              <span
+                className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[#22C55E]"
+                aria-hidden
+              >
+                <svg className="h-3 w-3 text-white" viewBox="0 0 12 12" fill="none" aria-hidden>
+                  <path
+                    d="M2.5 6L5 8.5L9.5 3.5"
+                    stroke="currentColor"
+                    strokeWidth="1.8"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </svg>
+              </span>
+            ) : (
+              <span className="h-5 w-5 shrink-0" aria-hidden />
+            )}
+            <span>Personal Details</span>
+            {tab === "personal" ? (
+              <span className="absolute bottom-0 left-0 right-0 h-0.5 rounded-full bg-gradient-to-r from-[#4F7FFF] to-[#7C3AED]" />
+            ) : null}
+          </button>
+          <button
+            type="button"
+            disabled={!createdEmployeeId && tab !== "face"}
+            className={`relative flex-1 pb-3 text-[13px] font-semibold transition ${
+              tab === "face" ? "text-[#4F7FFF]" : "text-[#9CA3AF] opacity-50"
+            }`}
+          >
+            Face Registration
+            {tab === "face" ? (
+              <span className="absolute bottom-0 left-0 right-0 h-0.5 rounded-full bg-gradient-to-r from-[#4F7FFF] to-[#7C3AED]" />
+            ) : null}
+          </button>
+        </div>
 
       {error ? (
         <p className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-[13px] font-medium text-red-800">
@@ -332,13 +486,6 @@ export default function OnboardingPage() {
 
       {tab === "business" ? (
         <div className="space-y-5 rounded-2xl border border-[#E8E5F0] bg-white p-6 shadow-lg shadow-black/[0.04] sm:p-8">
-          {organizationCode ? (
-            <div className="rounded-xl border border-[#E8E5F0] bg-[#FAFAFA] px-4 py-3">
-              <p className="text-[10.5px] font-bold uppercase tracking-wider text-[#9CA3AF]">Organization Code</p>
-              <p className="mt-1 font-mono text-[16px] font-black tracking-wide text-[#0F0F1A]">{organizationCode}</p>
-            </div>
-          ) : null}
-
           <label className="block">
             <span className="mb-1.5 block text-[10.5px] font-bold uppercase tracking-wider text-[#9CA3AF]">
               Business Name <span className="text-red-500">*</span>
@@ -475,7 +622,7 @@ export default function OnboardingPage() {
             Next Step
           </button>
         </div>
-      ) : (
+      ) : tab === "personal" ? (
         <div className="space-y-5 rounded-2xl border border-[#E8E5F0] bg-white p-6 shadow-lg shadow-black/[0.04] sm:p-8">
           <label className="block">
             <span className="mb-1.5 block text-[10.5px] font-bold uppercase tracking-wider text-[#9CA3AF]">
@@ -564,8 +711,41 @@ export default function OnboardingPage() {
             onClick={() => void submitAll()}
             className="flex h-11 w-full items-center justify-center rounded-xl bg-gradient-to-br from-[#4F7FFF] to-[#7C3AED] text-sm font-semibold text-white shadow-lg shadow-[#4F7FFF]/25 transition hover:opacity-[0.97] disabled:opacity-50"
           >
-            {submitting ? "Saving…" : "Continue"}
+            {submitting ? "Saving…" : "Save & Continue"}
           </button>
+        </div>
+      ) : (
+        <div className="space-y-5 rounded-2xl border border-[#E8E5F0] bg-white p-6 shadow-lg shadow-black/[0.04] sm:p-8">
+          {faceRegistered ? (
+            <div className="flex flex-col items-center justify-center py-10 text-center">
+              <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-emerald-100">
+                <Check className="h-8 w-8 text-emerald-600" />
+              </div>
+              <h2 className="text-[22px] font-black text-emerald-900">Face Registered Successfully!</h2>
+              <p className="mt-2 text-[14px] text-emerald-700">
+                You are fully set up. Redirecting to your dashboard...
+              </p>
+            </div>
+          ) : (
+            <>
+              <div className="mb-6 text-center">
+                <h2 className="text-[20px] font-black text-[#0F0F1A]">Setup Face Attendance</h2>
+                <p className="mt-1 text-[13px] text-[#6B6B80]">
+                  Register your face now so you can easily clock in and out.
+                </p>
+              </div>
+
+              {capturingFace ? (
+                <div className="flex flex-col items-center justify-center py-12">
+                  <Loader2 className="h-10 w-10 animate-spin text-[#4F7FFF]" />
+                  <p className="mt-4 text-sm font-medium text-[#6B6B80]">Processing face...</p>
+                </div>
+              ) : (
+                <FaceCapture onCapture={handleFaceCapture} />
+              )}
+
+            </>
+          )}
         </div>
       )}
     </section>

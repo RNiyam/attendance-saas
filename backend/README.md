@@ -7,10 +7,12 @@ Create `backend/.env` with at least `DATABASE_URL`, JWT secrets, and any SMTP ke
 Example `DATABASE_URL` shape:
 
 ```env
-DATABASE_URL=mysql://USER:PASSWORD@127.0.0.1:3306/DATABASE_NAME
+DATABASE_URL=postgresql://USER:PASSWORD@127.0.0.1:5432/DATABASE_NAME
 ```
 
-`npm run db:migrate` connects using `DATABASE_URL` from `.env`. Your MySQL server must already be running and reachable at that host and port.
+`npm run db:migrate` connects using `DATABASE_URL` from `.env`. PostgreSQL must be running and the database must exist.
+
+Legacy MySQL migration SQL is kept under `backend/drizzle_mysql/` for reference only; new environments use `backend/drizzle/`.
 
 ## SMTP Email
 

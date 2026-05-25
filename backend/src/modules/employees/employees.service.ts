@@ -11,6 +11,7 @@ import {
   employeeOnboardingInvites,
   employeeSalaryTemplateAssignments,
   employeeShiftAssignments,
+  employeeFaces,
   employees,
   holidayTemplateAssignments,
   holidayTemplates,
@@ -393,9 +394,13 @@ export async function activateEmployeeInvite(tokenRaw: string, password: string)
       .where(and(eq(roles.organizationId, invite.organizationId), eq(roles.name, "EMPLOYEE")))
       .limit(1);
     if (employeeRole && userId) {
-      await tx.insert(userRoles).values({ userId, roleId: employeeRole.id }).onDuplicateKeyUpdate({
-        set: { roleId: employeeRole.id },
-      });
+      await tx
+        .insert(userRoles)
+        .values({ userId, roleId: employeeRole.id })
+        .onConflictDoUpdate({
+          target: [userRoles.userId, userRoles.roleId],
+          set: { roleId: employeeRole.id },
+        });
     }
     return { ok: true };
   });
@@ -412,4 +417,31 @@ export async function getEmployeeById(organizationId: number, employeeId: number
     .where(and(eq(employees.organizationId, organizationId), eq(employees.id, employeeId)))
     .limit(1);
   return row ?? null;
+}
+
+export async function registerEmployeeFace(organizationId: number, employeeId: number, embedding: number[], imageUrl?: string) {
+  // Check if employee exists
+  const employee = await getEmployeeById(organizationId, employeeId);
+  if (!employee) {
+    throw new Error("Employee not found");
+  }
+
+  await db.transaction(async (tx) => {
+    // Insert or update face
+    await tx.insert(employeeFaces).values({
+      organizationId,
+      employeeId,
+      embedding,
+      imageUrl,
+    });
+
+    if (imageUrl) {
+      await tx
+        .update(employees)
+        .set({ profileImageUrl: imageUrl })
+        .where(eq(employees.id, employeeId));
+    }
+  });
+
+  return { success: true };
 }

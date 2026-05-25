@@ -8,11 +8,13 @@ import {
   ArrowLeft,
   Building2,
   CalendarClock,
+  Camera,
   Check,
   CircleDollarSign,
   Clock3,
   GraduationCap,
   Info,
+  Loader2,
   Lock,
   Upload,
   UserCheck,
@@ -22,6 +24,7 @@ import {
   ChevronRight,
   Zap,
 } from "lucide-react";
+import FaceCapture from "@/components/FaceCapture";
 import {
   attendanceSetupStepState,
   countAttendanceStepsDone,
@@ -316,64 +319,83 @@ function compactPayload<T extends Record<string, unknown>>(payload: T) {
   );
 }
 
+const DEFAULT_FORM_STATE = {
+  firstName: "",
+  lastName: "",
+  email: "",
+  phone: "",
+  gender: "",
+  dob: "",
+  departmentId: "",
+  designationId: "",
+  branchId: "",
+  joiningDate: "",
+  employeeId: "",
+  managerEmployeeId: "",
+  managerName: "",
+  workLocation: "",
+  shiftId: "",
+  attendancePolicyId: "",
+  holidayTemplateId: "",
+  leavePolicyTemplateId: "",
+  salaryTemplateId: "",
+  weeklyOffPolicy: "",
+  ctc: "",
+  salaryStructure: "",
+  bankAccountNumber: "",
+  bankIfsc: "",
+  pan: "",
+  aadhaar: "",
+  pfNumber: "",
+  esiNumber: "",
+  workHoursPerWeek: "",
+  hourlyRate: "",
+  proratedSalaryPercent: "",
+  contractStart: "",
+  contractEnd: "",
+  vendorCompany: "",
+  billingCycle: "",
+  invoiceAmount: "",
+  dailyWage: "",
+  workUnit: "",
+  supervisor: "",
+  internshipStart: "",
+  internshipEnd: "",
+  mentor: "",
+  stipend: "",
+  college: "",
+  probationStart: "",
+  probationEnd: "",
+  confirmationDate: "",
+  onboardingNotes: "",
+  sendInvite: true,
+};
+
 function AddSingleEmployeeForm({ type, onBack }: { type: EmployeeType; onBack: () => void }) {
   const Icon = type.icon;
-  const [form, setForm] = useState({
-    firstName: "",
-    lastName: "",
-    email: "",
-    phone: "",
-    gender: "",
-    dob: "",
-    departmentId: "",
-    designationId: "",
-    branchId: "",
-    joiningDate: "",
-    employeeId: "",
-    managerEmployeeId: "",
-    managerName: "",
-    workLocation: "",
-    shiftId: "",
-    attendancePolicyId: "",
-    holidayTemplateId: "",
-    leavePolicyTemplateId: "",
-    salaryTemplateId: "",
-    weeklyOffPolicy: "",
-    ctc: "",
-    salaryStructure: "",
-    bankAccountNumber: "",
-    bankIfsc: "",
-    pan: "",
-    aadhaar: "",
-    pfNumber: "",
-    esiNumber: "",
-    workHoursPerWeek: "",
-    hourlyRate: "",
-    proratedSalaryPercent: "",
-    contractStart: "",
-    contractEnd: "",
-    vendorCompany: "",
-    billingCycle: "",
-    invoiceAmount: "",
-    dailyWage: "",
-    workUnit: "",
-    supervisor: "",
-    internshipStart: "",
-    internshipEnd: "",
-    mentor: "",
-    stipend: "",
-    college: "",
-    probationStart: "",
-    probationEnd: "",
-    confirmationDate: "",
-    onboardingNotes: "",
-    sendInvite: true,
+  const [form, setForm] = useState<typeof DEFAULT_FORM_STATE>(() => {
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem(`add_employee_draft_${type.code}`);
+      if (saved) {
+        try {
+          return JSON.parse(saved);
+        } catch {}
+      }
+    }
+    return DEFAULT_FORM_STATE;
   });
+
+  useEffect(() => {
+    localStorage.setItem(`add_employee_draft_${type.code}`, JSON.stringify(form));
+  }, [form, type.code]);
   const [options, setOptions] = useState<OnboardingOptions>(EMPTY_OPTIONS);
   const [optionsLoading, setOptionsLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [createdEmployeeId, setCreatedEmployeeId] = useState<number | null>(null);
+  const [capturingFace, setCapturingFace] = useState(false);
+  const [faceRegistered, setFaceRegistered] = useState(false);
 
   const set = (key: keyof typeof form, value: string | boolean) => {
     setForm((current) => ({ ...current, [key]: value }));
@@ -458,17 +480,68 @@ function AddSingleEmployeeForm({ type, onBack }: { type: EmployeeType; onBack: (
         method: "POST",
         body: JSON.stringify(payload),
       });
+      const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
-        setError(typeof body.error === "string" ? body.error : "Could not add employee.");
+        setError(typeof data.error === "string" ? data.error : "Could not add employee.");
         return;
       }
       setSaved(true);
-      window.setTimeout(() => setSaved(false), 2500);
+      localStorage.removeItem(`add_employee_draft_${type.code}`);
+      if (data.employee?.id) {
+        setCreatedEmployeeId(data.employee.id);
+      } else {
+        window.setTimeout(() => setSaved(false), 2500);
+      }
     } catch {
       setError("Network error while adding employee.");
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleFaceCapture = async (imageSrc: string) => {
+    if (!createdEmployeeId) return;
+    setCapturingFace(true);
+    setError(null);
+    try {
+      // 1. Convert base64 to Blob
+      const res = await fetch(imageSrc);
+      const blob = await res.blob();
+      const file = new File([blob], "face.jpg", { type: "image/jpeg" });
+
+      // 2. Extract Embedding via FastAPI
+      const formData = new FormData();
+      formData.append("file", file);
+
+      const fastApiResponse = await fetch("http://127.0.0.1:8000/extract-face", {
+        method: "POST",
+        body: formData,
+      });
+
+      if (!fastApiResponse.ok) {
+        const errorData = await fastApiResponse.json().catch(() => ({}));
+        throw new Error(errorData.detail || "Failed to extract face embedding");
+      }
+
+      const { embedding } = await fastApiResponse.json();
+
+      // 3. Save to backend
+      const saveRes = await authenticatedFetch(`${apiBaseUrl}/api/employees/${createdEmployeeId}/face`, {
+        method: "POST",
+        body: JSON.stringify({ embedding, base64Image: imageSrc }),
+      });
+
+      if (!saveRes.ok) {
+        const errorData = await saveRes.json().catch(() => ({}));
+        throw new Error(errorData.error || "Failed to save face to database");
+      }
+
+      setFaceRegistered(true);
+    } catch (e: any) {
+      console.error("Face registration error:", e);
+      setError(e.message || "Failed to register face.");
+    } finally {
+      setCapturingFace(false);
     }
   };
 
@@ -501,6 +574,7 @@ function AddSingleEmployeeForm({ type, onBack }: { type: EmployeeType; onBack: (
           Fill the profile, rules, and payroll behavior. The selected templates are linked when the employee is saved.
         </p>
 
+        {!createdEmployeeId && (
         <form onSubmit={handleSave} className="space-y-4">
           <FormSection title="Basic">
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -676,6 +750,53 @@ function AddSingleEmployeeForm({ type, onBack }: { type: EmployeeType; onBack: (
             </div>
           </div>
         </form>
+        )}
+
+        {createdEmployeeId && !faceRegistered && (
+          <div className="mt-8 overflow-hidden rounded-2xl border border-[#E8E5F0] bg-white p-6 shadow-sm">
+            <div className="mb-6 text-center">
+              <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-emerald-100">
+                <Check className="h-6 w-6 text-emerald-600" />
+              </div>
+              <h2 className="text-[20px] font-black text-[#0F0F1A]">Employee Saved!</h2>
+              <p className="mt-1 text-[14px] text-[#6B6B80]">
+                Now, let&apos;s register their face for attendance. Please have them look at the camera.
+              </p>
+            </div>
+            {error && (
+              <p className="mb-4 rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-[13px] font-semibold text-red-600">
+                {error}
+              </p>
+            )}
+            {capturingFace ? (
+              <div className="flex flex-col items-center justify-center py-12">
+                <Loader2 className="h-10 w-10 animate-spin text-[#4F7FFF]" />
+                <p className="mt-4 text-sm font-medium text-[#6B6B80]">Processing face...</p>
+              </div>
+            ) : (
+              <FaceCapture onCapture={handleFaceCapture} />
+            )}
+          </div>
+        )}
+
+        {faceRegistered && (
+          <div className="mt-8 flex flex-col items-center justify-center overflow-hidden rounded-2xl border border-emerald-200 bg-emerald-50 p-10 text-center shadow-sm">
+            <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-emerald-100">
+              <Camera className="h-8 w-8 text-emerald-600" />
+            </div>
+            <h2 className="text-[22px] font-black text-emerald-900">Face Registered Successfully!</h2>
+            <p className="mt-2 text-[14px] text-emerald-700">
+              The employee is fully set up and can now mark attendance using face recognition.
+            </p>
+            <button
+              type="button"
+              onClick={onBack}
+              className="mt-8 flex h-11 items-center justify-center rounded-xl bg-emerald-600 px-8 text-[14px] font-black text-white shadow-lg shadow-emerald-600/25 transition hover:bg-emerald-700"
+            >
+              Back to Employees
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );

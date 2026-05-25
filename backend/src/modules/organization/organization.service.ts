@@ -85,24 +85,25 @@ export async function listDepartments(organizationId: number) {
   return db.select().from(departments).where(eq(departments.organizationId, organizationId));
 }
 
-export async function createDesignation(input: OrgScoped & { title: string; level?: string }) {
+export async function createDesignation(input: OrgScoped & { departmentId: number; title: string; level?: string }) {
   const title = input.title.trim();
   const [existing] = await db
     .select()
     .from(designations)
-    .where(and(eq(designations.organizationId, input.organizationId), eq(designations.title, title)))
+    .where(and(eq(designations.organizationId, input.organizationId), eq(designations.departmentId, input.departmentId), eq(designations.title, title)))
     .limit(1);
   if (existing) return existing;
 
   await db.insert(designations).values({
     organizationId: input.organizationId,
+    departmentId: input.departmentId,
     title,
     level: input.level,
   });
   const [row] = await db
     .select()
     .from(designations)
-    .where(and(eq(designations.organizationId, input.organizationId), eq(designations.title, title)))
+    .where(and(eq(designations.organizationId, input.organizationId), eq(designations.departmentId, input.departmentId), eq(designations.title, title)))
     .limit(1);
   return row;
 }
@@ -138,7 +139,7 @@ export async function listBusinessFunctions(organizationId: number) {
 
   return {
     departments: departmentRows.map((row) => ({ id: row.id, name: row.name })),
-    designations: designationRows.map((row) => ({ id: row.id, name: row.title })),
+    designations: designationRows.map((row) => ({ id: row.id, departmentId: row.departmentId, name: row.title })),
     shifts: shiftRows.map((row) => ({
       id: row.id,
       name: row.name,
@@ -151,11 +152,11 @@ export async function listBusinessFunctions(organizationId: number) {
 export async function createBusinessFunctionValue(
   organizationId: number,
   type: BusinessFunctionType,
-  input: { name: string; startTime?: string; endTime?: string },
+  input: { name: string; departmentId?: number; startTime?: string; endTime?: string },
 ) {
   const name = input.name.trim();
   if (type === "departments") return createDepartment({ organizationId, name });
-  if (type === "designations") return createDesignation({ organizationId, title: name });
+  if (type === "designations") return createDesignation({ organizationId, departmentId: input.departmentId!, title: name });
 
   const [existing] = await db
     .select()
@@ -210,4 +211,46 @@ export async function deleteBusinessFunctionValue(organizationId: number, type: 
   if (!row) return null;
   await db.delete(shifts).where(and(eq(shifts.organizationId, organizationId), eq(shifts.id, id)));
   return row;
+}
+
+
+export const PREDEFINED_BUSINESS_FUNCTIONS = {
+  departments: [
+    {
+      name: "Engineering",
+      designations: ["Software Engineer", "Frontend Engineer", "Backend Engineer", "DevOps Engineer", "QA Engineer", "Engineering Manager", "CTO"],
+    },
+    {
+      name: "Human Resources",
+      designations: ["HR Executive", "HR Manager", "Recruiter", "Payroll Specialist", "Chief HR Officer"],
+    },
+    {
+      name: "Sales",
+      designations: ["Sales Executive", "Account Executive", "Sales Manager", "Business Development Manager", "VP of Sales"],
+    },
+    {
+      name: "Marketing",
+      designations: ["Marketing Executive", "Content Writer", "SEO Specialist", "Marketing Manager", "Chief Marketing Officer"],
+    },
+    {
+      name: "Finance",
+      designations: ["Accountant", "Financial Analyst", "Finance Manager", "Chief Financial Officer"],
+    },
+    {
+      name: "Operations",
+      designations: ["Operations Executive", "Operations Manager", "Chief Operating Officer"],
+    },
+    {
+      name: "Customer Support",
+      designations: ["Customer Support Executive", "Customer Success Manager", "Technical Support Engineer"],
+    },
+    {
+      name: "Product",
+      designations: ["Product Manager", "Product Designer", "UX/UI Designer", "Chief Product Officer"],
+    }
+  ]
+};
+
+export function getPredefinedBusinessFunctions() {
+  return PREDEFINED_BUSINESS_FUNCTIONS;
 }

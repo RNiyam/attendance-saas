@@ -1,10 +1,11 @@
 import { createHash, randomBytes, randomInt, randomUUID } from "node:crypto";
 import bcrypt from "bcrypt";
-import { and, desc, eq, sql } from "drizzle-orm";
+import { and, desc, eq, sql, ilike } from "drizzle-orm";
 import jwt from "jsonwebtoken";
 import { db } from "../../database/index";
 import {
   authSessions,
+  employees,
   organizations,
   permissions,
   rolePermissions,
@@ -14,7 +15,7 @@ import {
 } from "../../database/schema/index";
 import { getEnv } from "../../config/env";
 import { writeActivityLog } from "../../utils/audit";
-import { sendWelcomeEmail } from "../email/email.service";
+import { sendWelcomeEmail, sendOnboardingRoleWelcomeEmail } from "../email/email.service";
 import { INDIAN_STATES, listCitiesForState } from "../reference/india-geo.data";
 import { findSector } from "../reference/sectors.data";
 
@@ -405,7 +406,7 @@ export async function signup(input: SignupInput) {
     input.appLoginUrl
       ? appendSignupParams(input.appLoginUrl, organizationCode, input.ownerEmail.toLowerCase())
       : `https://app.example.com/complete-signup?org=${organizationCode}&email=${encodeURIComponent(input.ownerEmail.toLowerCase())}`;
-  await sendWelcomeEmail({
+  void sendWelcomeEmail({
     organizationId: result.org.id,
     to: input.ownerEmail,
     userName: display,
@@ -435,7 +436,7 @@ function parseDurationToDays(s: string): number | null {
   return null;
 }
 
-export type LoginInput = { organizationSlug: string; email: string; password: string };
+export type LoginInput = { organizationSlug?: string; identifier: string; password: string };
 export type CompletePasswordSetupInput = {
   organizationSlug: string;
   email: string;
@@ -443,24 +444,66 @@ export type CompletePasswordSetupInput = {
   newPassword: string;
 };
 
-export async function login(input: LoginInput) {
-  const organizationCode = normalizeOrganizationCode(input.organizationSlug);
-  const [org] = await db.select().from(organizations).where(eq(organizations.slug, organizationCode)).limit(1);
-  if (!org) {
-    const err = new Error("Invalid credentials");
-    (err as { status?: number }).status = 401;
-    throw err;
+async function resolveLoginUserAndOrg(input: LoginInput) {
+  const identifier = input.identifier.trim().toLowerCase();
+  const slugRaw = input.organizationSlug?.trim();
+
+  const isEmail = identifier.includes("@");
+  
+  if (slugRaw) {
+    const organizationCode = normalizeOrganizationCode(slugRaw);
+    const [org] = await db.select().from(organizations).where(eq(organizations.slug, organizationCode)).limit(1);
+    if (!org) {
+      const err = new Error("Invalid credentials");
+      (err as { status?: number }).status = 401;
+      throw err;
+    }
+    const [user] = await db
+      .select()
+      .from(users)
+      .where(
+        and(
+          eq(users.organizationId, org.id),
+          isEmail ? eq(users.email, identifier) : ilike(users.firstName, identifier)
+        )
+      )
+      .limit(1);
+    if (!user || user.status !== "active") {
+      const err = new Error("Invalid credentials");
+      (err as { status?: number }).status = 401;
+      throw err;
+    }
+    return { org, user };
   }
-  const [user] = await db
-    .select()
+
+  const matches = await db
+    .select({ user: users, org: organizations })
     .from(users)
-    .where(and(eq(users.organizationId, org.id), eq(users.email, input.email.toLowerCase())))
-    .limit(1);
-  if (!user || user.status !== "active") {
+    .innerJoin(organizations, eq(users.organizationId, organizations.id))
+    .where(
+      and(
+        isEmail ? eq(users.email, identifier) : ilike(users.firstName, identifier),
+        eq(users.status, "active")
+      )
+    );
+
+  if (matches.length === 0) {
     const err = new Error("Invalid credentials");
     (err as { status?: number }).status = 401;
     throw err;
   }
+  if (matches.length > 1) {
+    const err = new Error(
+      "This email is linked to more than one workspace. Ask your administrator which organization code to use.",
+    );
+    (err as { status?: number }).status = 409;
+    throw err;
+  }
+  return { org: matches[0].org, user: matches[0].user };
+}
+
+export async function login(input: LoginInput) {
+  const { org, user } = await resolveLoginUserAndOrg(input);
   if (user.accountLockedUntil && new Date(user.accountLockedUntil) > new Date()) {
     const err = new Error("Account temporarily locked due to failed login attempts");
     (err as { status?: number }).status = 423;
@@ -690,7 +733,7 @@ export async function logout(refreshToken: string) {
 }
 
 export type SessionDetail = {
-  user: { id: number; email: string; organizationId: number; phone: string | null };
+  user: { id: number; email: string; organizationId: number; phone: string | null; profileImageUrl?: string | null };
   organization: {
     id: number;
     name: string;
@@ -710,6 +753,7 @@ export async function getSessionDetail(userId: number): Promise<SessionDetail | 
   const [user] = await db.select().from(users).where(eq(users.id, userId)).limit(1);
   if (!user) return null;
   const [org] = await db.select().from(organizations).where(eq(organizations.id, user.organizationId)).limit(1);
+  
   const roleRows = await db
     .select({ roleName: roles.name })
     .from(userRoles)
@@ -724,12 +768,20 @@ export async function getSessionDetail(userId: number): Promise<SessionDetail | 
       .split("@")[0]
       .replace(/[._-]+/g, " ")
       .replace(/\b\w/g, (c) => c.toUpperCase());
+      
+  const [emp] = await db
+    .select({ profileImageUrl: employees.profileImageUrl })
+    .from(employees)
+    .where(eq(employees.userId, userId))
+    .limit(1);
+
   return {
     user: {
       id: user.id,
       email: user.email,
       organizationId: user.organizationId,
       phone: user.phone ?? null,
+      profileImageUrl: emp?.profileImageUrl ?? null,
     },
     organization: org
       ? {
@@ -845,7 +897,26 @@ export async function saveOnboardingProfile(organizationId: number, userId: numb
       throw err;
     }
     await tx.insert(userRoles).values({ userId, roleId: targetRole.id });
+
+    // Create an employee record for the owner so they can use Face Attendance
+    const [existingEmp] = await tx.select({ id: employees.id }).from(employees).where(eq(employees.userId, userId)).limit(1);
+    if (!existingEmp) {
+      await tx.insert(employees).values({
+        organizationId,
+        userId,
+        employeeCode: `EMP-${Date.now().toString().slice(-6)}`,
+        firstName: firstName.trim(),
+        lastName: lastName?.trim() || null,
+        joiningDate: new Date(),
+        employmentType: "FULL_TIME",
+        status: "active",
+        phone: phoneStored,
+        workEmail: input.businessEmail.trim().toLowerCase(),
+      });
+    }
   });
+
+  const [createdEmp] = await db.select({ id: employees.id }).from(employees).where(eq(employees.userId, userId)).limit(1);
 
   await writeActivityLog({
     organizationId,
@@ -853,4 +924,18 @@ export async function saveOnboardingProfile(organizationId: number, userId: numb
     activityType: "onboarding.profile_completed",
     metadata: { sector: input.sectorName, role: rbacName },
   });
+
+  const [user] = await db.select().from(users).where(eq(users.id, userId)).limit(1);
+  if (user) {
+    void sendOnboardingRoleWelcomeEmail({
+      organizationId,
+      to: input.businessEmail.trim().toLowerCase(),
+      userName: firstName,
+      organizationName: input.businessName.trim(),
+      role: rbacName,
+      loginUrl: `${getEnv().APP_URL}/login`,
+    }).catch((e) => console.error("[onboarding] role welcome email failed:", e));
+  }
+
+  return { employeeId: createdEmp?.id };
 }
