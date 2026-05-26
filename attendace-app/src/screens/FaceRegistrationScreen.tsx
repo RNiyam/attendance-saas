@@ -3,14 +3,14 @@ import { useRef, useState } from 'react';
 import { ActivityIndicator, Button, Image, StyleSheet, Text, View } from 'react-native';
 
 type ScreenProps = {
-  onBack: () => void;
+  navigation: any;
 };
 
 type CapturedPhoto = {
   uri: string;
 };
 
-export default function FaceRegistrationScreen({ onBack }: ScreenProps) {
+export default function FaceRegistrationScreen({ navigation }: ScreenProps) {
   const [permission, requestPermission] = useCameraPermissions();
   const cameraRef = useRef<any>(null);
   const [photo, setPhoto] = useState<CapturedPhoto | null>(null);
@@ -122,7 +122,7 @@ export default function FaceRegistrationScreen({ onBack }: ScreenProps) {
       )}
 
       <View style={styles.backButton}>
-        <Button title="Back to Home" onPress={onBack} disabled={loading} />
+        <Button title="Back to Home" onPress={() => navigation.goBack()} disabled={loading} />
       </View>
     </View>
   );

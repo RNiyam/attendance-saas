@@ -5,6 +5,7 @@ import {
   StyleSheet,
   Animated,
   Dimensions,
+  PanResponder,
 } from 'react-native';
 import Svg, {
   Circle,
@@ -16,7 +17,7 @@ import Svg, {
 } from 'react-native-svg';
 
 interface SplashScreenProps {
-  onFinish: () => void;
+  navigation: any;
 }
 
 const { width } = Dimensions.get('window');
@@ -119,6 +120,109 @@ function ClockIcon() {
   );
 }
 
+// ─── Slide Button ─────────────────────────────────────────────────
+const SLIDER_WIDTH = width * 0.85;
+const KNOB_WIDTH = 56;
+const MAX_SLIDE = SLIDER_WIDTH - KNOB_WIDTH - 8; // 8 for padding (4 on each side)
+
+function SlideButton({ onSlideComplete }: { onSlideComplete: () => void }) {
+  const pan = useRef(new Animated.ValueXY()).current;
+  const slideTextOpacity = useRef(new Animated.Value(1)).current;
+  const welcomeOpacity = useRef(new Animated.Value(0)).current;
+  const bgAnim = useRef(new Animated.Value(0)).current;
+  const [completed, setCompleted] = useState(false);
+
+  const panResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: () => true,
+      onPanResponderMove: (e, gestureState) => {
+        let newX = gestureState.dx;
+        if (newX < 0) newX = 0;
+        if (newX > MAX_SLIDE) newX = MAX_SLIDE;
+        pan.x.setValue(newX);
+
+        const progress = Math.min(newX / MAX_SLIDE, 1);
+        slideTextOpacity.setValue(1 - progress * 1.5);
+      },
+      onPanResponderRelease: (e, gestureState) => {
+        if (gestureState.dx > MAX_SLIDE * 0.65) {
+          setCompleted(true);
+          Animated.parallel([
+            Animated.timing(pan.x, {
+              toValue: MAX_SLIDE,
+              duration: 150,
+              useNativeDriver: false,
+            }),
+            Animated.timing(slideTextOpacity, {
+              toValue: 0,
+              duration: 150,
+              useNativeDriver: false,
+            }),
+            Animated.timing(welcomeOpacity, {
+              toValue: 1,
+              duration: 150,
+              useNativeDriver: false,
+            }),
+            Animated.timing(bgAnim, {
+              toValue: 1,
+              duration: 150,
+              useNativeDriver: false,
+            }),
+          ]).start(() => {
+            // Wait a moment so the user can read "Welcome"
+            setTimeout(() => onSlideComplete(), 600);
+          });
+        } else {
+          Animated.parallel([
+            Animated.spring(pan.x, {
+              toValue: 0,
+              friction: 5,
+              tension: 40,
+              useNativeDriver: false,
+            }),
+            Animated.timing(slideTextOpacity, {
+              toValue: 1,
+              duration: 200,
+              useNativeDriver: false,
+            }),
+          ]).start();
+        }
+      },
+    })
+  ).current;
+
+  const containerBg = bgAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: ['#2A1E44', '#2E7D52'], // Navy to Green
+  });
+
+  return (
+    <Animated.View style={[styles.sliderContainer, { backgroundColor: containerBg }]}>
+      <Animated.Text style={[styles.sliderText, { opacity: slideTextOpacity }]}>
+        Slide to Login
+      </Animated.Text>
+      <Animated.Text style={[styles.sliderText, { opacity: welcomeOpacity }]}>
+        Welcome
+      </Animated.Text>
+      <Animated.View
+        style={[styles.sliderKnob, { transform: [{ translateX: pan.x }] }]}
+        {...(completed ? {} : panResponder.panHandlers)}
+      >
+        <Svg width={24} height={24} viewBox="0 0 24 24" fill="none">
+          <Path
+            d="M9 18l6-6-6-6"
+            stroke={completed ? "#2E7D52" : "#2A1E44"}
+            strokeWidth={2.5}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </Svg>
+      </Animated.View>
+    </Animated.View>
+  );
+}
+
 // ─── Employee Card ────────────────────────────────────────────────
 function EmployeeCard({ emp }: { emp: typeof EMPLOYEES[0] }) {
   return (
@@ -141,12 +245,11 @@ function EmployeeCard({ emp }: { emp: typeof EMPLOYEES[0] }) {
 }
 
 // ─── Main Splash ──────────────────────────────────────────────────
-export default function SplashScreen({ onFinish }: SplashScreenProps) {
+export default function SplashScreen({ navigation }: SplashScreenProps) {
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const scaleAnim = useRef(new Animated.Value(0.85)).current;
   const iconFloatAnim = useRef(new Animated.Value(0)).current;
   const cardSlideAnim = useRef(new Animated.Value(0)).current;
-  const loadingAnim = useRef(new Animated.Value(0)).current;
 
   const [activeIndex, setActiveIndex] = useState(0);
   const CARD_HEIGHT = 72;
@@ -166,25 +269,15 @@ export default function SplashScreen({ onFinish }: SplashScreenProps) {
         useNativeDriver: true,
       }),
     ]).start();
-
-    // loading bar
-    Animated.timing(loadingAnim, {
-      toValue: 1,
-      duration: 2200,
-      useNativeDriver: false,
-    }).start();
-
-    // exit
-    const timer = setTimeout(() => {
-      Animated.timing(fadeAnim, {
-        toValue: 0,
-        duration: 500,
-        useNativeDriver: true,
-      }).start(() => onFinish());
-    }, 4000);
-
-    return () => clearTimeout(timer);
   }, []);
+
+  const handleSlideComplete = () => {
+    Animated.timing(fadeAnim, {
+      toValue: 0,
+      duration: 500,
+      useNativeDriver: true,
+    }).start(() => navigation.replace('Login'));
+  };
 
   // icon float loop
   useEffect(() => {
@@ -220,11 +313,6 @@ export default function SplashScreen({ onFinish }: SplashScreenProps) {
     }, 2800);
     return () => clearInterval(interval);
   }, []);
-
-  const loadingWidth = loadingAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: ['0%', '100%'],
-  });
 
   return (
     <Animated.View style={[styles.container, { opacity: fadeAnim }]}>
@@ -281,12 +369,11 @@ export default function SplashScreen({ onFinish }: SplashScreenProps) {
         <Text style={styles.title}>WorkforceOS</Text>
         <Text style={styles.subtitle}>TRACK · MANAGE · GROW</Text>
 
-        {/* ── Loading bar ── */}
-        <View style={styles.loadingBarContainer}>
-          <Animated.View style={[styles.loadingBar, { width: loadingWidth }]} />
-        </View>
-
       </Animated.View>
+
+      <View style={{ position: 'absolute', bottom: 60, width: '100%', alignItems: 'center' }}>
+        <SlideButton onSlideComplete={handleSlideComplete} />
+      </View>
     </Animated.View>
   );
 }
@@ -446,17 +533,38 @@ const styles = StyleSheet.create({
     marginBottom: 32,
   },
 
-  // loading bar
-  loadingBarContainer: {
-    width: width * 0.35,
-    height: 3,
-    backgroundColor: 'rgba(155,136,196,0.15)',
-    borderRadius: 2,
+  // slider button
+  sliderContainer: {
+    width: width * 0.85,
+    height: 64,
+    backgroundColor: '#2A1E44', // Dark color from the app
+    borderRadius: 32,
+    justifyContent: 'center',
     overflow: 'hidden',
   },
-  loadingBar: {
-    height: '100%',
-    backgroundColor: '#9B88C4',
-    borderRadius: 2,
+  sliderText: {
+    position: 'absolute',
+    width: '100%',
+    textAlign: 'center',
+    color: '#F0EDF8',
+    fontSize: 15,
+    fontWeight: '600',
+    letterSpacing: 0.5,
+  },
+  sliderKnob: {
+    width: 56,
+    height: 56,
+    backgroundColor: '#F0EDF8', // matches the bg color of the splashscreen
+    borderRadius: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
+    position: 'absolute',
+    left: 4,
+    top: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 4,
   },
 });

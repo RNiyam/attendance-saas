@@ -1,61 +1,24 @@
-import { StatusBar } from 'expo-status-bar';
-import { useState } from 'react';
-import { Button, StyleSheet, Text, View } from 'react-native';
+import { NavigationContainer } from '@react-navigation/native';
+import { createNativeStackNavigator } from '@react-navigation/native-stack';
 
 import SplashScreen from './src/screens/SplashScreen';
+import LoginScreen from './src/screens/LoginScreen';
+import HomeScreen from './src/screens/HomeScreen';
 import AttendanceScreen from './src/screens/AttendanceScreen';
 import FaceRegistrationScreen from './src/screens/FaceRegistrationScreen';
 
-type ScreenName = 'Splash' | 'Home' | 'Register' | 'Attendance';
+const Stack = createNativeStackNavigator();
 
 export default function App() {
-  const [currentScreen, setCurrentScreen] = useState<ScreenName>('Splash');
-
-  if (currentScreen === 'Splash') {
-    return <SplashScreen onFinish={() => setCurrentScreen('Home')} />;
-  }
-
-  if (currentScreen === 'Register') {
-    return <FaceRegistrationScreen onBack={() => setCurrentScreen('Home')} />;
-  }
-
-  if (currentScreen === 'Attendance') {
-    return <AttendanceScreen onBack={() => setCurrentScreen('Home')} />;
-  }
-
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>HRMS Face Attendance</Text>
-
-      <View style={styles.buttonContainer}>
-        <Button title="Register Face" onPress={() => setCurrentScreen('Register')} />
-      </View>
-
-      <View style={styles.buttonContainer}>
-        <Button title="Mark Attendance" onPress={() => setCurrentScreen('Attendance')} />
-      </View>
-
-      <StatusBar style="auto" />
-    </View>
+    <NavigationContainer>
+      <Stack.Navigator initialRouteName="Splash" screenOptions={{ headerShown: false }}>
+        <Stack.Screen name="Splash" component={SplashScreen} />
+        <Stack.Screen name="Login" component={LoginScreen} />
+        <Stack.Screen name="Home" component={HomeScreen} />
+        <Stack.Screen name="Register" component={FaceRegistrationScreen} />
+        <Stack.Screen name="Attendance" component={AttendanceScreen} />
+      </Stack.Navigator>
+    </NavigationContainer>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#fff',
-    padding: 20,
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    marginBottom: 40,
-  },
-  buttonContainer: {
-    marginVertical: 10,
-    width: '100%',
-    maxWidth: 300,
-  },
-});
