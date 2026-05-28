@@ -4,8 +4,8 @@ import { authMiddleware, requirePermission, resolvePermissions, type AuthedReque
 import * as employeesService from "./employees.service";
 import { uploadBase64ToS3 } from "./s3.utils";
 import { db } from "../../database";
-import { employees } from "../../database/schema";
-import { eq } from "drizzle-orm";
+import { employees, employeeFaces } from "../../database/schema";
+import { eq, and } from "drizzle-orm";
 
 const router = Router();
 
@@ -177,6 +177,60 @@ router.post("/:id/face", async (req: AuthedRequest, res, next) => {
 
     const result = await employeesService.registerEmployeeFace(req.user!.organizationId, employeeId, body.embedding, imageUrl);
     res.status(201).json(result);
+  } catch (e) {
+    next(e);
+  }
+});
+
+function cosineSimilarity(vecA: number[], vecB: number[]) {
+  let dotProduct = 0;
+  let normA = 0;
+  let normB = 0;
+  for (let i = 0; i < Math.min(vecA.length, vecB.length); i++) {
+    dotProduct += vecA[i] * vecB[i];
+    normA += vecA[i] * vecA[i];
+    normB += vecB[i] * vecB[i];
+  }
+  if (normA === 0 || normB === 0) return 0;
+  return dotProduct / (Math.sqrt(normA) * Math.sqrt(normB));
+}
+
+router.post("/me/verify-face", async (req: AuthedRequest, res, next) => {
+  try {
+    const body = z.object({ embedding: z.array(z.number()) }).parse(req.body);
+    
+    // 1. Resolve employee for logged in user
+    const [emp] = await db
+      .select({ id: employees.id })
+      .from(employees)
+      .where(eq(employees.userId, req.user!.id))
+      .limit(1);
+      
+    if (!emp) {
+      res.status(404).json({ error: "Employee profile not found" });
+      return;
+    }
+    
+    // 2. Fetch face embedding from DB
+    const [faceData] = await db
+      .select({ embedding: employeeFaces.embedding })
+      .from(employeeFaces)
+      .where(and(eq(employeeFaces.organizationId, req.user!.organizationId), eq(employeeFaces.employeeId, emp.id)))
+      .limit(1);
+      
+    if (!faceData || !faceData.embedding) {
+      res.status(400).json({ error: "No face registered for this employee" });
+      return;
+    }
+    
+    // 3. Compute cosine similarity
+    const sim = cosineSimilarity(faceData.embedding as number[], body.embedding);
+    if (sim < 0.6) {
+      res.status(400).json({ error: "Face mismatch. Verification failed." });
+      return;
+    }
+    
+    res.json({ success: true, similarity: sim });
   } catch (e) {
     next(e);
   }

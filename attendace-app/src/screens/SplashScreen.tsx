@@ -14,10 +14,45 @@ import Svg, {
   Rect,
   Ellipse,
   G,
+  Defs,
+  LinearGradient,
+  RadialGradient,
+  Stop,
 } from 'react-native-svg';
 
 interface SplashScreenProps {
   navigation: any;
+}
+
+// ─── Premium Ambient Background ──────────────────────────────────────────────
+
+function PremiumBackground() {
+  return (
+    <View style={StyleSheet.absoluteFill} pointerEvents="none">
+      <Svg style={StyleSheet.absoluteFill} width="100%" height="100%">
+        <Defs>
+          <RadialGradient id="glow1" cx="15%" cy="15%" rx="65%" ry="65%" fx="15%" fy="15%">
+            <Stop offset="0%" stopColor="#EEF2FF" stopOpacity="0.85" />
+            <Stop offset="50%" stopColor="#E0E7FF" stopOpacity="0.5" />
+            <Stop offset="100%" stopColor="#FFFFFF" stopOpacity="0" />
+          </RadialGradient>
+          <RadialGradient id="glow2" cx="85%" cy="80%" rx="70%" ry="70%" fx="85%" fy="80%">
+            <Stop offset="0%" stopColor="#F5F3FF" stopOpacity="0.9" />
+            <Stop offset="50%" stopColor="#EDE9FE" stopOpacity="0.45" />
+            <Stop offset="100%" stopColor="#FFFFFF" stopOpacity="0" />
+          </RadialGradient>
+          <LinearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+            <Stop offset="0%" stopColor="#FAF9FF" />
+            <Stop offset="50%" stopColor="#FFFFFF" />
+            <Stop offset="100%" stopColor="#F8FAFC" />
+          </LinearGradient>
+        </Defs>
+        <Rect width="100%" height="100%" fill="url(#bgGrad)" />
+        <Circle cx="15%" cy="15%" r="280" fill="url(#glow1)" />
+        <Circle cx="85%" cy="80%" r="300" fill="url(#glow2)" />
+      </Svg>
+    </View>
+  );
 }
 
 const { width } = Dimensions.get('window');
@@ -315,17 +350,18 @@ export default function SplashScreen({ navigation }: SplashScreenProps) {
   }, []);
 
   return (
-    <Animated.View style={[styles.container, { opacity: fadeAnim }]}>
-
-      {/* background blobs */}
-      <View style={styles.blobTL} />
-      <View style={styles.blobBR} />
+    <View style={styles.container}>
+      <PremiumBackground />
 
       <Animated.View
         style={[
           styles.contentContainer,
-          { transform: [{ scale: scaleAnim }] },
+          { 
+            transform: [{ scale: scaleAnim }],
+            opacity: fadeAnim 
+          },
         ]}
+        needsOffscreenAlphaCompositing={true}
       >
 
         {/* ── Employee ticker ── */}
@@ -371,10 +407,10 @@ export default function SplashScreen({ navigation }: SplashScreenProps) {
 
       </Animated.View>
 
-      <View style={{ position: 'absolute', bottom: 60, width: '100%', alignItems: 'center' }}>
+      <Animated.View style={{ position: 'absolute', bottom: 60, width: '100%', alignItems: 'center', opacity: fadeAnim }}>
         <SlideButton onSlideComplete={handleSlideComplete} />
-      </View>
-    </Animated.View>
+      </Animated.View>
+    </View>
   );
 }
 
@@ -382,30 +418,10 @@ export default function SplashScreen({ navigation }: SplashScreenProps) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F0EDF8',
+    backgroundColor: '#FAF9FF',
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
-  },
-
-  // blobs
-  blobTL: {
-    position: 'absolute',
-    width: 320,
-    height: 320,
-    borderRadius: 160,
-    backgroundColor: '#E3DCF5',
-    top: -100,
-    left: -100,
-  },
-  blobBR: {
-    position: 'absolute',
-    width: 260,
-    height: 260,
-    borderRadius: 130,
-    backgroundColor: '#D8EEE8',
-    bottom: -70,
-    right: -70,
   },
 
   contentContainer: {
@@ -433,8 +449,11 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     borderRadius: 18,
     paddingHorizontal: 14,
-    borderWidth: 1,
-    borderColor: 'rgba(155,136,196,0.18)',
+    shadowColor: '#7C3AED',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    elevation: 2,
   },
   faceRing: {
     width: 44,
@@ -512,8 +531,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 22,
-    borderWidth: 1.5,
-    borderColor: 'rgba(155,136,196,0.2)',
+    shadowColor: '#7C3AED',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.1,
+    shadowRadius: 10,
+    elevation: 3,
   },
 
   // text
@@ -537,10 +559,15 @@ const styles = StyleSheet.create({
   sliderContainer: {
     width: width * 0.85,
     height: 64,
-    backgroundColor: '#2A1E44', // Dark color from the app
+    backgroundColor: '#1E1B4B',
     borderRadius: 32,
     justifyContent: 'center',
     overflow: 'hidden',
+    shadowColor: '#1E1B4B',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 3,
   },
   sliderText: {
     position: 'absolute',
@@ -554,7 +581,7 @@ const styles = StyleSheet.create({
   sliderKnob: {
     width: 56,
     height: 56,
-    backgroundColor: '#F0EDF8', // matches the bg color of the splashscreen
+    backgroundColor: '#FFFFFF',
     borderRadius: 28,
     alignItems: 'center',
     justifyContent: 'center',
@@ -563,7 +590,7 @@ const styles = StyleSheet.create({
     top: 4,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
+    shadowOpacity: 0.15,
     shadowRadius: 4,
     elevation: 4,
   },

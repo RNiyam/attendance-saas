@@ -1,16 +1,29 @@
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { useRef, useState } from 'react';
-import { ActivityIndicator, Button, Image, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Button, Image, StyleSheet, Text, View, Platform } from 'react-native';
+
+const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || (Platform.select({
+  android: 'http://10.0.2.2:5003',
+  ios: 'http://127.0.0.1:5003',
+  default: 'http://127.0.0.1:5003',
+}) as string);
 
 type ScreenProps = {
   navigation: any;
+  route: {
+    params?: {
+      accessToken?: string;
+      employeeId?: number;
+    };
+  };
 };
 
 type CapturedPhoto = {
   uri: string;
 };
 
-export default function FaceRegistrationScreen({ navigation }: ScreenProps) {
+export default function FaceRegistrationScreen({ navigation, route }: ScreenProps) {
+  const { accessToken, employeeId } = route.params || {};
   const [permission, requestPermission] = useCameraPermissions();
   const cameraRef = useRef<any>(null);
   const [photo, setPhoto] = useState<CapturedPhoto | null>(null);
@@ -54,7 +67,7 @@ export default function FaceRegistrationScreen({ navigation }: ScreenProps) {
         } as any,
       );
 
-      const pythonBackendUrl = 'http://127.0.0.1:8000/extract-face';
+      const pythonBackendUrl = (process.env.EXPO_PUBLIC_PYTHON_API_URL || 'http://127.0.0.1:8000') + '/extract-face';
       const response = await fetch(pythonBackendUrl, {
         method: 'POST',
         body: formData,
@@ -73,12 +86,12 @@ export default function FaceRegistrationScreen({ navigation }: ScreenProps) {
 
       setStatus('Registering embedding...');
 
-      const nodeBackendUrl = 'http://127.0.0.1:3001/employees/1/face';
+      const nodeBackendUrl = `${API_BASE_URL}/api/employees/${employeeId || 1}/face`;
       const regResponse = await fetch(nodeBackendUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: 'Bearer YOUR_TOKEN',
+          'Authorization': `Bearer ${accessToken}`,
         },
         body: JSON.stringify({
           embedding: data.embedding,

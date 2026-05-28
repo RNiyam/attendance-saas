@@ -1,11 +1,12 @@
 import { createHash, randomBytes, randomInt, randomUUID } from "node:crypto";
 import bcrypt from "bcrypt";
-import { and, desc, eq, sql, ilike } from "drizzle-orm";
+import { and, desc, eq, sql, ilike, or } from "drizzle-orm";
 import jwt from "jsonwebtoken";
 import { db } from "../../database/index";
 import {
   authSessions,
   employees,
+  employeeFaces,
   organizations,
   permissions,
   rolePermissions,
@@ -450,6 +451,13 @@ async function resolveLoginUserAndOrg(input: LoginInput) {
 
   const isEmail = identifier.includes("@");
   
+  const nameCondition = or(
+    ilike(users.firstName, identifier),
+    ilike(users.lastName, identifier),
+    eq(sql`lower(trim(concat(${users.firstName}, ' ', ${users.lastName})))`, identifier),
+    eq(sql`lower(concat(${users.firstName}, ${users.lastName}))`, identifier)
+  );
+
   if (slugRaw) {
     const organizationCode = normalizeOrganizationCode(slugRaw);
     const [org] = await db.select().from(organizations).where(eq(organizations.slug, organizationCode)).limit(1);
@@ -464,7 +472,7 @@ async function resolveLoginUserAndOrg(input: LoginInput) {
       .where(
         and(
           eq(users.organizationId, org.id),
-          isEmail ? eq(users.email, identifier) : ilike(users.firstName, identifier)
+          isEmail ? eq(users.email, identifier) : nameCondition
         )
       )
       .limit(1);
@@ -482,7 +490,7 @@ async function resolveLoginUserAndOrg(input: LoginInput) {
     .innerJoin(organizations, eq(users.organizationId, organizations.id))
     .where(
       and(
-        isEmail ? eq(users.email, identifier) : ilike(users.firstName, identifier),
+        isEmail ? eq(users.email, identifier) : nameCondition,
         eq(users.status, "active")
       )
     );
@@ -564,11 +572,23 @@ export async function login(input: LoginInput) {
     activityType: "auth.login",
     metadata: { email: user.email },
   });
+
+  const roleRows = await db
+    .select({ roleName: roles.name })
+    .from(userRoles)
+    .innerJoin(roles, eq(roles.id, userRoles.roleId))
+    .where(eq(userRoles.userId, user.id));
+
+  const onboardingCompleted = Boolean(org?.legalName?.trim());
+  const roleAssigned = roleRows.length > 0;
+
   return {
     accessToken,
     refreshToken,
     user: { id: user.id, email: user.email, organizationId: org.id },
     organization: { id: org.id, name: org.name, slug: org.slug },
+    onboardingCompleted,
+    roleAssigned,
   };
 }
 
@@ -747,6 +767,8 @@ export type SessionDetail = {
   roleAssigned: boolean;
   onboardingCompleted: boolean;
   displayName: string;
+  faceRegistered: boolean;
+  employeeId: number | null;
 };
 
 export async function getSessionDetail(userId: number): Promise<SessionDetail | null> {
@@ -770,10 +792,22 @@ export async function getSessionDetail(userId: number): Promise<SessionDetail | 
       .replace(/\b\w/g, (c) => c.toUpperCase());
       
   const [emp] = await db
-    .select({ profileImageUrl: employees.profileImageUrl })
+    .select({ id: employees.id, profileImageUrl: employees.profileImageUrl })
     .from(employees)
     .where(eq(employees.userId, userId))
     .limit(1);
+
+  let faceRegistered = false;
+  let employeeId: number | null = null;
+  if (emp) {
+    employeeId = emp.id;
+    const [face] = await db
+      .select({ id: employeeFaces.id })
+      .from(employeeFaces)
+      .where(eq(employeeFaces.employeeId, emp.id))
+      .limit(1);
+    faceRegistered = !!face;
+  }
 
   return {
     user: {
@@ -798,6 +832,8 @@ export async function getSessionDetail(userId: number): Promise<SessionDetail | 
     roleAssigned: roleRows.length > 0,
     onboardingCompleted,
     displayName,
+    faceRegistered,
+    employeeId,
   };
 }
 
