@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -12,357 +12,62 @@ import {
   ScrollView,
   Animated,
   Easing,
-  PanResponder,
   ActivityIndicator,
+  Switch,
+  useWindowDimensions,
 } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
+import { LinearGradient } from 'expo-linear-gradient';
 import { loginUser, getUserSession, verifyFace } from '../apis/loginApi';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import Svg, {
-  Path,
-  Rect,
-  Circle,
-  Line,
-  Polyline,
-  G,
-  Text as SvgText,
-  Defs,
-  LinearGradient,
-  RadialGradient,
-  Stop,
-} from 'react-native-svg';
+import { colors, fonts, typography } from '../theme';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import Svg, { Path, Rect, Circle, Line, Polyline, Defs, RadialGradient, Stop } from 'react-native-svg';
 
 interface LoginScreenProps {
   navigation: any;
 }
 
-// ─── Premium Ambient Background ──────────────────────────────────────────────
+function BackIcon() {
+  return (
+    <Svg width={22} height={22} viewBox="0 0 24 24" fill="none" stroke={colors.text} strokeWidth={3.25} strokeLinecap="round" strokeLinejoin="round">
+      <Path d="M15 18l-6-6 6-6" />
+    </Svg>
+  );
+}
 
 function PremiumBackground() {
   return (
-    <View style={StyleSheet.absoluteFill} pointerEvents="none">
+    <View style={[StyleSheet.absoluteFill, { backgroundColor: colors.background }]} pointerEvents="none">
       <Svg style={StyleSheet.absoluteFill} width="100%" height="100%">
         <Defs>
-          <RadialGradient id="glow1" cx="15%" cy="15%" rx="65%" ry="65%" fx="15%" fy="15%">
-            <Stop offset="0%" stopColor="#EEF2FF" stopOpacity="0.8" />
-            <Stop offset="50%" stopColor="#E0E7FF" stopOpacity="0.45" />
-            <Stop offset="100%" stopColor="#FFFFFF" stopOpacity="0" />
+          <RadialGradient id="loginGlow1" cx="85%" cy="12%" rx="55%" ry="55%">
+            <Stop offset="0%" stopColor="#D4E4FF" stopOpacity="0.75" />
+            <Stop offset="100%" stopColor={colors.background} stopOpacity="0" />
           </RadialGradient>
-          <RadialGradient id="glow2" cx="85%" cy="80%" rx="70%" ry="70%" fx="85%" fy="80%">
-            <Stop offset="0%" stopColor="#F5F3FF" stopOpacity="0.85" />
-            <Stop offset="50%" stopColor="#EDE9FE" stopOpacity="0.4" />
-            <Stop offset="100%" stopColor="#FFFFFF" stopOpacity="0" />
+          <RadialGradient id="loginGlow2" cx="10%" cy="88%" rx="60%" ry="60%">
+            <Stop offset="0%" stopColor="#EDE9FE" stopOpacity="0.65" />
+            <Stop offset="100%" stopColor={colors.background} stopOpacity="0" />
           </RadialGradient>
-          <LinearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-            <Stop offset="0%" stopColor="#FAF9FF" />
-            <Stop offset="50%" stopColor="#FFFFFF" />
-            <Stop offset="100%" stopColor="#F8FAFC" />
-          </LinearGradient>
         </Defs>
-        <Rect width="100%" height="100%" fill="url(#bgGrad)" />
-        <Circle cx="15%" cy="15%" r="280" fill="url(#glow1)" />
-        <Circle cx="85%" cy="80%" r="300" fill="url(#glow2)" />
+        <Circle cx="90%" cy="8%" r="220" fill="url(#loginGlow1)" />
+        <Circle cx="8%" cy="92%" r="200" fill="url(#loginGlow2)" />
       </Svg>
     </View>
   );
 }
 
-// ─── Animated Clock ──────────────────────────────────────────────────────────
-
-const FUN_LABELS = [
-  'On time!',
-  'Early bird!',
-  'Morning!',
-  'Rise & shine!',
-  "Let's go!",
-  "You're here!",
-  'Clock in!',
-  'Present!',
-  'Ready to rock!',
-  'Let\'s do this!',
-  'Time to shine!',
-  'Welcome back!',
-  'Looking good!',
-  'Let\'s get it!',
-];
-
-interface Bubble {
-  id: number;
-  label: string;
-  x: number;
-  anim: Animated.Value;
-  opacity: Animated.Value;
-  floatDown?: boolean;
-  pan?: Animated.ValueXY;
-}
-
-// ─── Draggable Floating Label ────────────────────────────────────────────────
-
-function DraggableBubble({ bubble, onRemove }: { bubble: Bubble; onRemove: (id: number) => void }) {
-  const pan = useRef(bubble.pan || new Animated.ValueXY()).current;
-
-  const panResponder = useRef(
-    PanResponder.create({
-      onStartShouldSetPanResponder: () => true,
-      onMoveShouldSetPanResponder: () => true,
-      onPanResponderGrant: () => {
-        // Stop the auto-fade so user can play with it
-        bubble.opacity.stopAnimation();
-        bubble.opacity.setValue(1);
-      },
-      onPanResponderMove: Animated.event(
-        [null, { dx: pan.x, dy: pan.y }],
-        { useNativeDriver: false }
-      ),
-      onPanResponderRelease: () => {
-        // Fade out and remove after releasing
-        Animated.timing(bubble.opacity, {
-          toValue: 0,
-          duration: 400,
-          useNativeDriver: false,
-        }).start(() => onRemove(bubble.id));
-      },
-    })
-  ).current;
-
-  const translateY = bubble.anim.interpolate({ inputRange: [0, 1], outputRange: [0, 70] });
-  const scale = bubble.anim.interpolate({ inputRange: [0, 0.1, 1], outputRange: [0.5, 1.05, 1] });
-
-  return (
-    <Animated.View
-      {...panResponder.panHandlers}
-      style={[
-        styles.bubble,
-        styles.bubbleDraggable,
-        {
-          left: bubble.x,
-          opacity: bubble.opacity,
-          transform: [
-            { translateY },
-            { scale },
-            { translateX: pan.x },
-            { translateY: pan.y },
-          ],
-        },
-      ]}
-    >
-      <Text style={styles.bubbleText}>{bubble.label}</Text>
-      <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-        <Text style={styles.bubbleDragHint}>Drag Me </Text>
-        <Svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#7C3AED" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <Path d="M18 11V6a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v0"/><Path d="M14 4a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v0"/><Path d="M10 4a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v0"/><Path d="M6 10V6a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v7.69A5.05 5.05 0 0 0 3.36 17c.5.54 1.13 1 1.83 1.29l3.52 1.46A4.97 4.97 0 0 0 10.59 20h3.69a6.03 6.03 0 0 0 5.72-6.19V11a2 2 0 0 0-2-2z"/>
-        </Svg>
-      </View>
-    </Animated.View>
-  );
-}
-
-// ─── Time-based Greeting ─────────────────────────────────────────────────────
-
-function getGreeting(): { text: string; icon: React.ReactNode } {
-  const hour = new Date().getHours();
-  if (hour >= 5 && hour < 12) return { text: 'Good morning', icon: <Svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#F59E0B" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><Circle cx="12" cy="12" r="5"/><Line x1="12" y1="1" x2="12" y2="3"/><Line x1="12" y1="21" x2="12" y2="23"/><Line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><Line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><Line x1="1" y1="12" x2="3" y2="12"/><Line x1="21" y1="12" x2="23" y2="12"/><Line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><Line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></Svg> };
-  if (hour >= 12 && hour < 17) return { text: 'Good afternoon', icon: <Svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#F59E0B" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><Path d="M12 2v2"/><Path d="M4.93 4.93l1.41 1.41"/><Path d="M20 12h2"/><Path d="M19.07 4.93l-1.41 1.41"/><Path d="M15.94 13A4 4 0 0 0 8.35 11 5 5 0 0 0 8 21h8a4 4 0 0 0 .04-7.96z"/></Svg> };
-  if (hour >= 17 && hour < 21) return { text: 'Good evening', icon: <Svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#F97316" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><Path d="M12 2v2"/><Path d="M4.93 4.93l1.41 1.41"/><Path d="M19.07 4.93l-1.41 1.41"/><Path d="M2 18h20"/><Path d="M16 18a4 4 0 0 0-8 0"/></Svg> };
-  return { text: 'Good night', icon: <Svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#8B5CF6" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><Path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></Svg> };
-}
-
-function AnimatedClock() {
-  const secDeg = useRef(new Animated.Value(0)).current;
-  const minDeg = useRef(new Animated.Value(0)).current;
-  const hourDeg = useRef(new Animated.Value(0)).current;
-  const scaleAnim = useRef(new Animated.Value(1)).current;
-  const [bubbles, setBubbles] = useState<Bubble[]>([]);
-  const bubbleId = useRef(0);
-  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-
-  // Tick every second
-  useEffect(() => {
-    const tick = () => {
-      const now = new Date();
-      const s = now.getSeconds();
-      const m = now.getMinutes();
-      const h = now.getHours() % 12;
-      secDeg.setValue(s * 6);
-      minDeg.setValue(m * 6 + s * 0.1);
-      hourDeg.setValue(h * 30 + m * 0.5);
-    };
-    tick();
-    intervalRef.current = setInterval(tick, 1000);
-    return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
-  }, []);
-
-  const removeBubble = (id: number) => {
-    setBubbles(prev => prev.filter(b => b.id !== id));
-  };
-
-  const handleTap = () => {
-    // Bounce scale
-    Animated.sequence([
-      Animated.timing(scaleAnim, { toValue: 0.88, duration: 80, useNativeDriver: true, easing: Easing.out(Easing.quad) }),
-      Animated.spring(scaleAnim, { toValue: 1, friction: 4, tension: 200, useNativeDriver: true }),
-    ]).start();
-
-    // Pick label
-    const label = FUN_LABELS[Math.floor(Math.random() * FUN_LABELS.length)];
-    const xPos = 10 + Math.random() * (CLOCK_SIZE - 20);
-    const anim = new Animated.Value(0);
-    const opacity = new Animated.Value(1);
-    const id = bubbleId.current++;
-
-    // Every 3rd tap spawns a draggable bubble that floats DOWN
-    const shouldFloatDown = id % 3 === 0;
-
-    if (shouldFloatDown) {
-      const pan = new Animated.ValueXY();
-      setBubbles(prev => [...prev, { id, label, x: xPos, anim, opacity, floatDown: true, pan }]);
-
-      // Float down animation (no auto-remove — user drags to dismiss)
-      Animated.timing(anim, {
-        toValue: 1,
-        duration: 1200,
-        useNativeDriver: false,
-        easing: Easing.out(Easing.cubic),
-      }).start(() => {
-        // Auto-fade after 4 seconds if user doesn't interact
-        Animated.sequence([
-          Animated.delay(4000),
-          Animated.timing(opacity, { toValue: 0, duration: 600, useNativeDriver: false }),
-        ]).start(() => removeBubble(id));
-      });
-    } else {
-      // Normal bubble floats UP
-      setBubbles(prev => [...prev, { id, label, x: xPos, anim, opacity }]);
-
-      Animated.parallel([
-        Animated.timing(anim, { toValue: 1, duration: 1000, useNativeDriver: false, easing: Easing.out(Easing.cubic) }),
-        Animated.sequence([
-          Animated.delay(500),
-          Animated.timing(opacity, { toValue: 0, duration: 500, useNativeDriver: false }),
-        ]),
-      ]).start(() => removeBubble(id));
-    }
-  };
-
-  const secInterp = secDeg.interpolate({ inputRange: [0, 360], outputRange: ['0deg', '360deg'] });
-  const minInterp = minDeg.interpolate({ inputRange: [0, 360], outputRange: ['0deg', '360deg'] });
-  const hourInterp = hourDeg.interpolate({ inputRange: [0, 360], outputRange: ['0deg', '360deg'] });
-
-  return (
-    <Pressable onPress={handleTap} style={styles.clockContainer}>
-      {/* Clock face */}
-      <Animated.View style={[styles.clockFace, { transform: [{ scale: scaleAnim }] }]}>
-        <Svg width="96" height="96" viewBox="0 0 96 96">
-          {/* Outer ring */}
-          <Circle cx="48" cy="48" r="44" fill="#FFFFFF" stroke="#7C3AED" strokeWidth="2" />
-          {/* Hour markers */}
-          {[0, 30, 60, 90, 120, 150, 180, 210, 240, 270, 300, 330].map((deg, i) => {
-            const r1 = i % 3 === 0 ? 34 : 36;
-            const r2 = 40;
-            const rad = (deg - 90) * Math.PI / 180;
-            return (
-              <Line
-                key={deg}
-                x1={48 + r1 * Math.cos(rad)}
-                y1={48 + r1 * Math.sin(rad)}
-                x2={48 + r2 * Math.cos(rad)}
-                y2={48 + r2 * Math.sin(rad)}
-                stroke={i % 3 === 0 ? '#7C3AED' : '#D1D5DB'}
-                strokeWidth={i % 3 === 0 ? 2 : 1}
-                strokeLinecap="round"
-              />
-            );
-          })}
-        </Svg>
-
-        {/* Animated hands rendered as Animated.Views */}
-        <View style={StyleSheet.absoluteFill} pointerEvents="none">
-          {/* Hour hand */}
-          <Animated.View
-            style={[styles.handBase, { transform: [{ rotate: hourInterp }] }]}
-          >
-            <View style={[styles.hand, styles.hourHand]} />
-          </Animated.View>
-          {/* Minute hand */}
-          <Animated.View
-            style={[styles.handBase, { transform: [{ rotate: minInterp }] }]}
-          >
-            <View style={[styles.hand, styles.minHand]} />
-          </Animated.View>
-          {/* Second hand */}
-          <Animated.View
-            style={[styles.handBase, { transform: [{ rotate: secInterp }] }]}
-          >
-            <View style={[styles.hand, styles.secHand]} />
-          </Animated.View>
-          {/* Center dot */}
-          <View style={styles.centerDot} />
-        </View>
-      </Animated.View>
-
-      {/* Tap hint */}
-      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginTop: 8 }}>
-        <Text style={[styles.clockTapHint, { marginTop: 0, marginRight: 4 }]}>Tap Me</Text>
-        <Svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#7C3AED" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-          <Path d="M18 11V6a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v0"/><Path d="M14 4a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v0"/><Path d="M10 4a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v0"/><Path d="M6 10V6a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v7.69A5.05 5.05 0 0 0 3.36 17c.5.54 1.13 1 1.83 1.29l3.52 1.46A4.97 4.97 0 0 0 10.59 20h3.69a6.03 6.03 0 0 0 5.72-6.19V11a2 2 0 0 0-2-2z"/>
-        </Svg>
-      </View>
-
-      {/* Bubbles */}
-      {bubbles.map(b => {
-        // Draggable bubble that floats down
-        if (b.floatDown) {
-          return <DraggableBubble key={b.id} bubble={b} onRemove={removeBubble} />;
-        }
-
-        // Normal bubble floats up
-        const translateY = b.anim.interpolate({ inputRange: [0, 1], outputRange: [0, -55] });
-        const scale = b.anim.interpolate({ inputRange: [0, 0.1, 1], outputRange: [0.5, 1, 0.9] });
-        return (
-          <Animated.View
-            key={b.id}
-            pointerEvents="none"
-            style={[
-              styles.bubble,
-              {
-                left: b.x,
-                opacity: b.opacity,
-                transform: [{ translateY }, { scale }],
-              },
-            ]}
-          >
-            <Text style={styles.bubbleText}>{b.label}</Text>
-          </Animated.View>
-        );
-      })}
-    </Pressable>
-  );
-}
-
-// ─── Greeting Text Component ──────────────────────────────────────────────────
-
-function GreetingText() {
-  const greeting = useMemo(() => getGreeting(), []);
-  return (
-    <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
-      <Text style={[styles.title, { marginBottom: 0, marginRight: 8 }]}>{greeting.text}</Text>
-      {greeting.icon}
-    </View>
-  );
-}
-
-// ─── Login Screen ─────────────────────────────────────────────────────────────
-
 export default function LoginScreen({ navigation }: LoginScreenProps) {
+  const insets = useSafeAreaInsets();
+  const { height: windowHeight } = useWindowDimensions();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [isFocusedEmail, setIsFocusedEmail] = useState(false);
-  const [isFocusedPassword, setIsFocusedPassword] = useState(false);
+  const [rememberMe, setRememberMe] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showPassword, setShowPassword] = useState(false);
+  const [isFocusedEmail, setIsFocusedEmail] = useState(false);
+  const [isFocusedPassword, setIsFocusedPassword] = useState(false);
 
-  // ─── Face Scanner Integration States & Refs ─────────────────────────────────
   const [showFaceScan, setShowFaceScan] = useState(false);
   const [sessionData, setSessionData] = useState<any>(null);
   const [permission, requestPermission] = useCameraPermissions();
@@ -375,30 +80,8 @@ export default function LoginScreen({ navigation }: LoginScreenProps) {
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const rotationAnim = useRef(new Animated.Value(0)).current;
   const captureTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  // Staggered Mount Animations
-  const clockAnim = useRef(new Animated.Value(0)).current;
-  const greetingAnim = useRef(new Animated.Value(0)).current;
-  const inputsAnim = useRef(new Animated.Value(0)).current;
-  const buttonAnim = useRef(new Animated.Value(0)).current;
-
-  // Active Spring Focus Animations for inputs
-  const focusEmailAnim = useRef(new Animated.Value(0)).current;
-  const focusPasswordAnim = useRef(new Animated.Value(0)).current;
-
-  // Tactile Button Scale Spring
   const buttonScale = useRef(new Animated.Value(1)).current;
 
-  useEffect(() => {
-    Animated.stagger(100, [
-      Animated.timing(clockAnim, { toValue: 1, duration: 600, useNativeDriver: true, easing: Easing.out(Easing.back(1.2)) }),
-      Animated.timing(greetingAnim, { toValue: 1, duration: 500, useNativeDriver: true, easing: Easing.out(Easing.quad) }),
-      Animated.timing(inputsAnim, { toValue: 1, duration: 500, useNativeDriver: true, easing: Easing.out(Easing.quad) }),
-      Animated.timing(buttonAnim, { toValue: 1, duration: 500, useNativeDriver: true, easing: Easing.out(Easing.quad) }),
-    ]).start();
-  }, []);
-
-  // Proactively request camera permissions when the scanner HUD mounts
   useEffect(() => {
     if (showFaceScan) {
       (async () => {
@@ -410,10 +93,8 @@ export default function LoginScreen({ navigation }: LoginScreenProps) {
     }
   }, [showFaceScan]);
 
-  // ─── Holographic Face Scanner Loops & Captures ───────────────────────────────
   useEffect(() => {
     if (showFaceScan) {
-      // 1. Loop holographic sweeping laser beam
       laserAnim.setValue(0);
       Animated.loop(
         Animated.sequence([
@@ -432,7 +113,6 @@ export default function LoginScreen({ navigation }: LoginScreenProps) {
         ])
       ).start();
 
-      // 2. Loop pulse animation for HUD guidelines
       pulseAnim.setValue(1);
       Animated.loop(
         Animated.sequence([
@@ -451,7 +131,6 @@ export default function LoginScreen({ navigation }: LoginScreenProps) {
         ])
       ).start();
 
-      // 3. Loop rotation animation for concentric vector circles
       rotationAnim.setValue(0);
       Animated.loop(
         Animated.timing(rotationAnim, {
@@ -462,32 +141,25 @@ export default function LoginScreen({ navigation }: LoginScreenProps) {
         })
       ).start();
 
-      // 4. Reset scanning state & set 2.5s timer for high-speed auto-capture
       setFaceStatus('ALIGN YOUR FACE...');
       setFaceScanning(false);
       setScanSuccess(false);
 
       if (permission?.granted) {
-        if (captureTimeoutRef.current) {
-          clearTimeout(captureTimeoutRef.current);
-        }
+        if (captureTimeoutRef.current) clearTimeout(captureTimeoutRef.current);
         captureTimeoutRef.current = setTimeout(() => {
           handleAutoCapture();
         }, 2500);
       }
     } else {
-      if (captureTimeoutRef.current) {
-        clearTimeout(captureTimeoutRef.current);
-      }
+      if (captureTimeoutRef.current) clearTimeout(captureTimeoutRef.current);
       laserAnim.setValue(0);
       pulseAnim.setValue(1);
       rotationAnim.setValue(0);
     }
 
     return () => {
-      if (captureTimeoutRef.current) {
-        clearTimeout(captureTimeoutRef.current);
-      }
+      if (captureTimeoutRef.current) clearTimeout(captureTimeoutRef.current);
     };
   }, [showFaceScan, permission?.granted]);
 
@@ -497,7 +169,6 @@ export default function LoginScreen({ navigation }: LoginScreenProps) {
     setFaceStatus('CAPTURING BIOMETRICS...');
 
     try {
-      // 1. Take high-fidelity snapshot
       const photo = await cameraRef.current.takePictureAsync({
         quality: 0.85,
         skipProcessing: false,
@@ -509,7 +180,6 @@ export default function LoginScreen({ navigation }: LoginScreenProps) {
 
       setFaceStatus('ANALYZING BIOMETRICS...');
 
-      // 2. Extract 128D face embedding via Python server
       const formData = new FormData();
       formData.append('file', {
         uri: photo.uri,
@@ -537,14 +207,12 @@ export default function LoginScreen({ navigation }: LoginScreenProps) {
 
       setFaceStatus('MATCHING BIOMETRIC HASH...');
 
-      // 3. Match similarity with DB records
       const matchSuccess = await verifyFace(sessionData.accessToken, extractData.embedding);
 
       if (matchSuccess) {
         setFaceStatus('IDENTITY VERIFIED!');
         setScanSuccess(true);
 
-        // Success transition delay
         setTimeout(() => {
           setShowFaceScan(false);
           navigation.replace('Home', {
@@ -558,14 +226,12 @@ export default function LoginScreen({ navigation }: LoginScreenProps) {
           });
         }, 1500);
       } else {
-        // Face mismatch occurred
         setFaceStatus('FACE MISMATCH!');
         setTimeout(() => {
           setShowFaceScan(false);
         }, 1500);
       }
-    } catch (err: any) {
-      // General error (like connection issues or no face detected)
+    } catch {
       setFaceStatus('FACE MISMATCH!');
       setTimeout(() => {
         setShowFaceScan(false);
@@ -590,28 +256,8 @@ export default function LoginScreen({ navigation }: LoginScreenProps) {
     }, 1000);
   };
 
-  const handleFocusEmail = () => {
-    setIsFocusedEmail(true);
-    Animated.spring(focusEmailAnim, { toValue: 1, friction: 8, tension: 120, useNativeDriver: true }).start();
-  };
-
-  const handleBlurEmail = () => {
-    setIsFocusedEmail(false);
-    Animated.spring(focusEmailAnim, { toValue: 0, friction: 8, tension: 120, useNativeDriver: true }).start();
-  };
-
-  const handleFocusPassword = () => {
-    setIsFocusedPassword(true);
-    Animated.spring(focusPasswordAnim, { toValue: 1, friction: 8, tension: 120, useNativeDriver: true }).start();
-  };
-
-  const handleBlurPassword = () => {
-    setIsFocusedPassword(false);
-    Animated.spring(focusPasswordAnim, { toValue: 0, friction: 8, tension: 120, useNativeDriver: true }).start();
-  };
-
   const handlePressIn = () => {
-    Animated.spring(buttonScale, { toValue: 0.95, useNativeDriver: true, speed: 20, bounciness: 0 }).start();
+    Animated.spring(buttonScale, { toValue: 0.97, useNativeDriver: true, speed: 20, bounciness: 0 }).start();
   };
 
   const handlePressOut = () => {
@@ -630,14 +276,11 @@ export default function LoginScreen({ navigation }: LoginScreenProps) {
     const normalizedEmail = email.trim().toLowerCase();
 
     try {
-      // 1. Authenticate user
       const loginData = await loginUser(normalizedEmail, password);
 
       if (loginData.accessToken) {
-        // 2. Fetch session details including roles & face status
         const session = await getUserSession(loginData.accessToken);
 
-        // 3. Conditional routing: open Face Scanner if already registered in DB
         if (session.faceRegistered) {
           setSessionData({
             accessToken: loginData.accessToken,
@@ -650,7 +293,6 @@ export default function LoginScreen({ navigation }: LoginScreenProps) {
           });
           setShowFaceScan(true);
         } else {
-          // Skip scanner if no face exists
           navigation.replace('Home', {
             accessToken: loginData.accessToken,
             user: session.user,
@@ -673,28 +315,11 @@ export default function LoginScreen({ navigation }: LoginScreenProps) {
     }
   };
 
-  // Interpolations for stagger entrance
-  const clockOpacity = clockAnim;
-  const clockTranslateY = clockAnim.interpolate({ inputRange: [0, 1], outputRange: [24, 0] });
-
-  const greetingOpacity = greetingAnim;
-  const greetingTranslateY = greetingAnim.interpolate({ inputRange: [0, 1], outputRange: [16, 0] });
-
-  const inputsOpacity = inputsAnim;
-  const inputsTranslateY = inputsAnim.interpolate({ inputRange: [0, 1], outputRange: [16, 0] });
-
-  const buttonOpacity = buttonAnim;
-  const buttonTranslateY = buttonAnim.interpolate({ inputRange: [0, 1], outputRange: [12, 0] });
-
-  // Interpolations for input focus
-  const emailIconScale = focusEmailAnim.interpolate({ inputRange: [0, 1], outputRange: [1, 1.15] });
-  const passwordIconScale = focusPasswordAnim.interpolate({ inputRange: [0, 1], outputRange: [1, 1.15] });
-
   if (showFaceScan) {
     if (!permission) {
       return (
         <SafeAreaView style={styles.scannerWrapper}>
-          <PremiumBackground />
+          <View style={styles.scannerDarkBackdrop} />
           <View style={styles.scannerHeader}>
             <Text style={styles.scannerTitle}>Biometric Terminal</Text>
             <Text style={styles.scannerSubtitle}>Initializing secure face scanner...</Text>
@@ -707,7 +332,7 @@ export default function LoginScreen({ navigation }: LoginScreenProps) {
     if (!permission.granted) {
       return (
         <SafeAreaView style={styles.scannerWrapper}>
-          <PremiumBackground />
+          <View style={styles.scannerDarkBackdrop} />
           <View style={styles.scannerHeader}>
             <Text style={styles.scannerTitle}>Biometric Security</Text>
             <Text style={styles.scannerSubtitle}>Camera access is required to authenticate your identity via Face Scanner.</Text>
@@ -718,7 +343,9 @@ export default function LoginScreen({ navigation }: LoginScreenProps) {
               <Circle cx="12" cy="13" r="4" />
             </Svg>
             <Text style={styles.permissionCardTitle}>Grant Camera Permission</Text>
-            <Text style={styles.permissionCardDesc}>We use the front camera to scan your face and match it securely with the encrypted biometric template in our database.</Text>
+            <Text style={styles.permissionCardDesc}>
+              We use the front camera to scan your face and match it securely with the encrypted biometric template in our database.
+            </Text>
             <Pressable onPress={requestPermission} style={styles.permissionButton}>
               <Text style={styles.permissionButtonText}>Enable Camera</Text>
             </Pressable>
@@ -743,7 +370,6 @@ export default function LoginScreen({ navigation }: LoginScreenProps) {
         <View style={styles.scannerDarkBackdrop} />
 
         <SafeAreaView style={styles.scannerWrapper}>
-          {/* Header Panel */}
           <View style={styles.scannerHeader}>
             <View style={styles.scannerOrgBadge}>
               <Text style={styles.scannerOrgText}>{sessionData?.organization?.name || 'WORKFORCEOS'}</Text>
@@ -752,7 +378,6 @@ export default function LoginScreen({ navigation }: LoginScreenProps) {
             <Text style={styles.scannerSubtitle}>Secured Biometric Terminal Access</Text>
           </View>
 
-          {/* Central Camera Box */}
           <View style={styles.cameraBoxContainer}>
             <Animated.View
               style={[
@@ -803,7 +428,6 @@ export default function LoginScreen({ navigation }: LoginScreenProps) {
             </View>
           </View>
 
-          {/* Status Display Card & Control Console */}
           <View style={styles.scannerStatusCard}>
             <View style={styles.statusIndicatorWrapper}>
               {faceScanning ? (
@@ -813,17 +437,15 @@ export default function LoginScreen({ navigation }: LoginScreenProps) {
               ) : (
                 <View style={styles.idleDot} />
               )}
-              <Text style={[styles.statusCardTitle, scanSuccess && styles.statusCardTitleSuccess]}>
-                {faceStatus}
-              </Text>
+              <Text style={[styles.statusCardTitle, scanSuccess && styles.statusCardTitleSuccess]}>{faceStatus}</Text>
             </View>
 
             <Text style={styles.statusCardDesc}>
               {scanSuccess
                 ? 'Identity matched. Setting up your secure attendance workspace...'
                 : faceScanning
-                ? 'Keep still while we compare facial structures with database records...'
-                : 'Position your face fully within the guide circle to authorize transaction.'}
+                  ? 'Keep still while we compare facial structures with database records...'
+                  : 'Position your face fully within the guide circle to authorize transaction.'}
             </Text>
 
             <View style={styles.scannerActions}>
@@ -869,166 +491,136 @@ export default function LoginScreen({ navigation }: LoginScreenProps) {
     <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
       <PremiumBackground />
       <KeyboardAvoidingView
-        style={{ flex: 1 }}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        style={styles.keyboardView}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
         <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
           <View style={styles.container}>
-            <View style={styles.card}>
-              <ScrollView
-                contentContainerStyle={styles.scrollContent}
-                showsVerticalScrollIndicator={false}
-                bounces={false}
+            <View style={styles.topBar}>
+              <Pressable
+                onPress={() => navigation.replace('Splash')}
+                style={({ pressed }) => [styles.backButton, pressed && { opacity: 0.7 }]}
+                hitSlop={12}
               >
-                {/* Center Section containing Header & Inputs */}
-                <View style={styles.centerSection}>
-                  {/* Centered Clock */}
-                  <Animated.View
-                    style={[
-                      styles.clockWrapper,
-                      {
-                        opacity: clockOpacity,
-                        transform: [{ translateY: clockTranslateY }]
-                      }
-                    ]}
-                    needsOffscreenAlphaCompositing={true}
-                  >
-                    <AnimatedClock />
-                  </Animated.View>
+                <BackIcon />
+              </Pressable>
+            </View>
 
-                  {/* Greeting Header above the email field */}
-                  <Animated.View style={[
-                    styles.headerTextContainer,
-                    {
-                      opacity: greetingOpacity,
-                      transform: [{ translateY: greetingTranslateY }]
-                    }
-                  ]}>
-                    <GreetingText />
-                    <Text style={styles.subtitle}>Let's track today's attendance</Text>
-                  </Animated.View>
+            <ScrollView
+              style={styles.scroll}
+              contentContainerStyle={[
+                styles.scrollContent,
+                { minHeight: windowHeight - insets.top - insets.bottom - 72 },
+              ]}
+              showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
+              keyboardDismissMode="on-drag"
+              bounces={false}
+            >
+              <View style={styles.content}>
+                <View style={styles.headerBlock}>
+                  <Text style={styles.title}>Welcome Back</Text>
+                  <Text style={styles.subtitle}>
+                    Stay connected by signing in with your email and password to access your account.
+                  </Text>
+                </View>
 
-                  {/* Inputs */}
-                  <Animated.View style={[
-                    styles.inputsContainer,
-                    {
-                      opacity: inputsOpacity,
-                      transform: [{ translateY: inputsTranslateY }]
-                    }
-                  ]}>
-                    <View style={styles.inputWrapper}>
-                      <Animated.View
-                        style={[
-                          styles.inputWrapperFocusedBorder,
-                          { opacity: focusEmailAnim }
-                        ]}
-                        pointerEvents="none"
-                      />
-                      <Animated.View style={[styles.inputIcon, { transform: [{ scale: emailIconScale }] }]}>
-                        <Svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#9CA3AF" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                          <Path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
-                          <Circle cx="12" cy="7" r="4" />
-                        </Svg>
-                      </Animated.View>
+                <View style={styles.formBlock}>
+                  <View style={styles.fieldGroup}>
+                    <Text style={styles.fieldLabel}>Email Address</Text>
+                    <TextInput
+                      style={[styles.input, isFocusedEmail && styles.inputFocused]}
+                      placeholder="you@company.com"
+                      placeholderTextColor={colors.placeholder}
+                      value={email}
+                      onChangeText={setEmail}
+                      autoCapitalize="none"
+                      autoComplete="email"
+                      keyboardType="email-address"
+                      textContentType="emailAddress"
+                      onFocus={() => setIsFocusedEmail(true)}
+                      onBlur={() => setIsFocusedEmail(false)}
+                    />
+                  </View>
+
+                  <View style={styles.fieldGroup}>
+                    <Text style={styles.fieldLabel}>Password</Text>
+                    <View style={styles.passwordRow}>
                       <TextInput
-                        style={styles.input}
-                        placeholder="Your name or email"
-                        placeholderTextColor="#CACAD6"
-                        value={email}
-                        onChangeText={setEmail}
-                        autoCapitalize="none"
-                        autoComplete="username"
-                        onFocus={handleFocusEmail}
-                        onBlur={handleBlurEmail}
-                      />
-                    </View>
-
-                    <View style={styles.inputWrapper}>
-                      <Animated.View
-                        style={[
-                          styles.inputWrapperFocusedBorder,
-                          { opacity: focusPasswordAnim }
-                        ]}
-                        pointerEvents="none"
-                      />
-                      <Animated.View style={[styles.inputIcon, { transform: [{ scale: passwordIconScale }] }]}>
-                        <Svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#9CA3AF" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                          <Rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
-                          <Path d="M7 11V7a5 5 0 0 1 10 0v4" />
-                        </Svg>
-                      </Animated.View>
-                      <TextInput
-                        style={styles.input}
-                        placeholder="Password"
-                        placeholderTextColor="#CACAD6"
+                        style={[styles.input, styles.passwordInput, isFocusedPassword && styles.inputFocused]}
+                        placeholder="Enter your password"
+                        placeholderTextColor={colors.placeholder}
                         value={password}
                         onChangeText={setPassword}
                         secureTextEntry={!showPassword}
-                        autoComplete="current-password"
-                        onFocus={handleFocusPassword}
-                        onBlur={handleBlurPassword}
+                        autoComplete="password"
+                        textContentType="password"
+                        onFocus={() => setIsFocusedPassword(true)}
+                        onBlur={() => setIsFocusedPassword(false)}
                       />
-                      <Pressable
-                        onPress={() => setShowPassword(!showPassword)}
-                        style={styles.eyeIconContainer}
-                      >
+                      <Pressable onPress={() => setShowPassword(!showPassword)} style={styles.eyeButton} hitSlop={8}>
                         {showPassword ? (
-                          <Svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#9CA3AF" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <Svg width={20} height={20} viewBox="0 0 24 24" fill="none" stroke={colors.textMuted} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
                             <Path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.5 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24" />
                             <Line x1="1" y1="1" x2="23" y2="23" />
                           </Svg>
                         ) : (
-                          <Svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#9CA3AF" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <Svg width={20} height={20} viewBox="0 0 24 24" fill="none" stroke={colors.textMuted} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
                             <Path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
                             <Circle cx="12" cy="12" r="3" />
                           </Svg>
                         )}
                       </Pressable>
                     </View>
-                  </Animated.View>
-                </View>
+                  </View>
 
-                {/* Bottom Section containing Sign in & Forgot Password */}
-                <Animated.View
-                  style={[
-                    styles.bottomSection,
-                    {
-                      opacity: buttonOpacity,
-                      transform: [{ translateY: buttonTranslateY }]
-                    }
-                  ]}
-                  needsOffscreenAlphaCompositing={true}
-                >
-                  {error && (
+                  <View style={styles.optionsRow}>
+                    <View style={styles.rememberRow}>
+                      <Switch
+                        value={rememberMe}
+                        onValueChange={setRememberMe}
+                        trackColor={{ false: colors.border, true: colors.accent }}
+                        thumbColor={colors.surface}
+                        ios_backgroundColor={colors.border}
+                      />
+                      <Text style={styles.rememberText}>Remember me</Text>
+                    </View>
+                    <Pressable onPress={() => navigation.navigate('ForgotPassword')} hitSlop={8}>
+                      <Text style={styles.forgotPasswordText}>Forgot Password?</Text>
+                    </Pressable>
+                  </View>
+
+                  {error ? (
                     <View style={styles.errorContainer}>
                       <Text style={styles.errorText}>{error}</Text>
                     </View>
-                  )}
+                  ) : null}
 
                   <Pressable
                     onPressIn={handlePressIn}
                     onPressOut={handlePressOut}
                     onPress={handleLogin}
                     disabled={loading}
-                    style={{ width: '100%' }}
+                    style={styles.loginButtonPressable}
                   >
                     <Animated.View style={[styles.loginButton, { transform: [{ scale: buttonScale }] }]}>
-                      {loading ? (
-                        <ActivityIndicator color="#FFFFFF" size="small" />
-                      ) : (
-                        <Text style={styles.loginButtonText}>Sign in</Text>
-                      )}
+                      <LinearGradient
+                        colors={[colors.gradientStart, colors.gradientEnd]}
+                        start={{ x: 0, y: 0 }}
+                        end={{ x: 1, y: 1 }}
+                        style={styles.loginButtonGradient}
+                      >
+                        {loading ? (
+                          <ActivityIndicator color="#FFFFFF" size="small" />
+                        ) : (
+                          <Text style={styles.loginButtonText}>Sign In</Text>
+                        )}
+                      </LinearGradient>
                     </Animated.View>
                   </Pressable>
-
-                  <View style={styles.forgotPasswordContainer}>
-                    <Pressable style={({ pressed }) => pressed && { opacity: 0.7 }}>
-                      <Text style={styles.forgotPasswordText}>Forgot password?</Text>
-                    </Pressable>
-                  </View>
-                </Animated.View>
-              </ScrollView>
-            </View>
+                </View>
+              </View>
+            </ScrollView>
           </View>
         </TouchableWithoutFeedback>
       </KeyboardAvoidingView>
@@ -1036,262 +628,183 @@ export default function LoginScreen({ navigation }: LoginScreenProps) {
   );
 }
 
-// ─── Styles ───────────────────────────────────────────────────────────────────
-
-const CLOCK_SIZE = 96;
-const HAND_OFFSET = CLOCK_SIZE / 2; // 48
-
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: '#FAF9FF',
+    backgroundColor: colors.background,
+  },
+  keyboardView: {
+    flex: 1,
   },
   container: {
     flex: 1,
-    backgroundColor: '#FAF9FF',
-    paddingTop: 20,
-  },
-  card: {
-    flex: 1,
     backgroundColor: 'transparent',
-    overflow: 'visible',
+    paddingHorizontal: 28,
+  },
+  topBar: {
+    paddingTop: 8,
+    paddingBottom: 4,
+  },
+  backButton: {
+    width: 46,
+    height: 46,
+    borderRadius: 23,
+    borderWidth: 1.5,
+    borderColor: colors.text,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.surface,
+    shadowColor: colors.primary,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 6,
+    elevation: 2,
+  },
+  scroll: {
+    flex: 1,
   },
   scrollContent: {
-    paddingHorizontal: 28,
-    paddingTop: 20,
-    paddingBottom: 24,
     flexGrow: 1,
-    justifyContent: 'space-between',
-  },
-
-  // ── Clock ──
-  clockContainer: {
-    width: CLOCK_SIZE + 60,
-    height: CLOCK_SIZE + 24,
-    alignItems: 'center',
-    justifyContent: 'flex-start',
-    position: 'relative',
-    overflow: 'visible',
-  },
-  clockFace: {
-    width: CLOCK_SIZE,
-    height: CLOCK_SIZE,
-    borderRadius: CLOCK_SIZE / 2,
-    backgroundColor: '#FFFFFF',
-    shadowColor: '#7C3AED',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.12,
-    shadowRadius: 12,
-    elevation: 4,
-  },
-  handBase: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    alignItems: 'center',
     justifyContent: 'center',
+    paddingTop: 12,
+    paddingBottom: 32,
   },
-  hand: {
-    position: 'absolute',
-    bottom: '50%',
-    borderRadius: 4,
+  content: {
+    width: '100%',
+    maxWidth: 420,
+    alignSelf: 'center',
   },
-  hourHand: {
-    width: 4,
-    height: 24,
-    backgroundColor: '#1A1240',
-    marginBottom: 0,
-  },
-  minHand: {
-    width: 2.5,
-    height: 32,
-    backgroundColor: '#7C3AED',
-    marginBottom: 0,
-  },
-  secHand: {
-    width: 1.5,
-    height: 36,
-    backgroundColor: '#FF6B6B',
-    marginBottom: 0,
-  },
-  centerDot: {
-    position: 'absolute',
-    top: HAND_OFFSET - 5,
-    left: HAND_OFFSET - 5,
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    backgroundColor: '#FF6B6B',
-    borderWidth: 1.5,
-    borderColor: '#FFFFFF',
-  },
-  clockTapHint: {
-    marginTop: 8,
-    fontSize: 11,
-    color: '#7C3AED',
-    fontWeight: '600',
-    letterSpacing: 0.5,
-  },
-  bubble: {
-    position: 'absolute',
-    top: -12,
-    backgroundColor: '#EEF2FF',
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: '#C7B8FF',
-  },
-  bubbleText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#4C1D95',
-  },
-  bubbleDraggable: {
-    top: CLOCK_SIZE + 14,
-    backgroundColor: '#F5F3FF',
-    borderColor: '#7C3AED',
-    borderWidth: 1.5,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 24,
-    alignItems: 'center',
-    shadowColor: '#7C3AED',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 8,
-    elevation: 3,
-    zIndex: 100,
-  },
-  bubbleDragHint: {
-    fontSize: 9,
-    fontWeight: '500',
-    color: '#9CA3AF',
-    marginTop: 2,
-  },
-
-  // ── Form ──
-  clockWrapper: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 28,
-    overflow: 'visible',
-    zIndex: 10,
-  },
-  headerTextContainer: {
-    marginBottom: 20,
+  headerBlock: {
+    marginBottom: 36,
   },
   title: {
-    fontSize: 28,
-    fontWeight: '800',
-    color: '#0F0F1A',
-    marginBottom: 8,
-    letterSpacing: -0.5,
+    ...typography.screenTitle,
+    fontSize: 30,
+    lineHeight: 36,
+    color: colors.text,
+    letterSpacing: -0.8,
+    marginBottom: 12,
   },
   subtitle: {
+    ...typography.body,
     fontSize: 15,
-    color: '#9CA3AF',
-    fontWeight: '500',
-    marginBottom: 0,
-  },
-  centerSection: {
-    flex: 1,
-    justifyContent: 'center',
-    paddingVertical: 12,
-  },
-  bottomSection: {
+    lineHeight: 23,
+    color: colors.textSecondary,
     width: '100%',
-    marginTop: 20,
   },
-  inputsContainer: {
-    gap: 16,
-    marginTop: 8,
+  formBlock: {
+    gap: 24,
   },
-  inputWrapper: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1.5,
-    borderColor: '#E8E5F0',
-    borderRadius: 14,
-    height: 56,
-    paddingHorizontal: 6,
-    position: 'relative',
+  fieldGroup: {
+    gap: 10,
   },
-  inputWrapperFocusedBorder: {
-    ...StyleSheet.absoluteFillObject,
-    borderRadius: 14,
-    borderWidth: 2,
-    borderColor: '#7C3AED',
-  },
-  inputIcon: {
-    width: 44,
-    justifyContent: 'center',
-    alignItems: 'center',
+  fieldLabel: {
+    ...typography.label,
+    fontSize: 11,
+    fontFamily: fonts.bold,
+    color: colors.textMuted,
+    textTransform: 'uppercase',
+    letterSpacing: 0.8,
   },
   input: {
-    flex: 1,
-    height: '100%',
-    fontSize: 15,
-    fontWeight: '500',
-    color: '#0F0F1A',
-  },
-  loginButton: {
-    backgroundColor: '#4F7FFF',
-    height: 56,
+    width: '100%',
+    height: 54,
     borderRadius: 14,
+    borderWidth: 2,
+    borderColor: colors.border,
+    backgroundColor: colors.inputBg,
+    paddingHorizontal: 16,
+    fontFamily: fonts.medium,
+    fontSize: 15,
+    color: colors.text,
+  },
+  inputFocused: {
+    borderColor: `${colors.accent}80`,
+    backgroundColor: colors.surface,
+  },
+  passwordRow: {
+    position: 'relative',
+    width: '100%',
+  },
+  passwordInput: {
+    paddingRight: 48,
+  },
+  eyeButton: {
+    position: 'absolute',
+    right: 14,
+    top: 0,
+    bottom: 0,
     justifyContent: 'center',
     alignItems: 'center',
-    marginTop: 12,
-    shadowColor: '#4F7FFF',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 4,
+    width: 40,
   },
-  loginButtonText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '700',
-  },
-  forgotPasswordContainer: {
+  optionsRow: {
+    flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 12,
+    justifyContent: 'space-between',
+    gap: 12,
+    marginTop: 4,
+  },
+  rememberRow: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    flexShrink: 1,
+  },
+  rememberText: {
+    ...typography.bodySmall,
+    color: colors.textSecondary,
+    flexShrink: 1,
   },
   forgotPasswordText: {
-    color: '#4F7FFF',
-    fontSize: 14,
-    fontWeight: '600',
+    ...typography.button,
+    fontSize: 13,
+    color: colors.primary,
+    flexShrink: 0,
   },
-  eyeIconContainer: {
-    width: 44,
-    height: '100%',
+  loginButtonPressable: {
+    width: '100%',
+    marginTop: 8,
+  },
+  loginButton: {
+    height: 56,
+    borderRadius: 16,
+    overflow: 'hidden',
+    shadowColor: colors.primary,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.28,
+    shadowRadius: 10,
+    elevation: 4,
+  },
+  loginButtonGradient: {
+    flex: 1,
+    height: 56,
+    borderRadius: 16,
     justifyContent: 'center',
     alignItems: 'center',
   },
+  loginButtonText: {
+    ...typography.button,
+    fontSize: 16,
+    color: '#FFFFFF',
+  },
   errorContainer: {
-    backgroundColor: '#FEF2F2',
-    borderColor: '#FCA5A5',
+    backgroundColor: colors.errorBg,
+    borderColor: colors.errorBorder,
     borderWidth: 1,
-    borderRadius: 14,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    marginTop: 12,
-    marginBottom: 4,
-    width: '100%',
-    alignItems: 'center',
+    borderRadius: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
   },
   errorText: {
-    color: '#DC2626',
-    fontSize: 12.5,
-    fontWeight: '600',
+    fontFamily: fonts.semiBold,
+    color: colors.error,
+    fontSize: 13,
     textAlign: 'center',
-    lineHeight: 16,
+    lineHeight: 18,
   },
 
-  // ── Scanner Styles ──
   scannerOverlayContainer: {
     ...StyleSheet.absoluteFillObject,
     zIndex: 1000,
@@ -1318,9 +831,9 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   scannerOrgText: {
+    fontFamily: fonts.bold,
     color: '#22D3EE',
     fontSize: 10,
-    fontWeight: '800',
     letterSpacing: 1.5,
   },
   scannerHeader: {
@@ -1329,16 +842,13 @@ const styles = StyleSheet.create({
     marginTop: 20,
   },
   scannerTitle: {
-    fontSize: 24,
-    fontWeight: '900',
+    ...typography.screenTitle,
     color: '#FFFFFF',
-    letterSpacing: -0.5,
     textAlign: 'center',
   },
   scannerSubtitle: {
-    fontSize: 13,
+    ...typography.secondary,
     color: '#8C8AA2',
-    fontWeight: '500',
     marginTop: 6,
     textAlign: 'center',
   },
@@ -1470,8 +980,8 @@ const styles = StyleSheet.create({
     backgroundColor: '#10B981',
   },
   statusCardTitle: {
+    fontFamily: fonts.bold,
     fontSize: 14,
-    fontWeight: '800',
     color: '#E4E2F0',
     letterSpacing: 0.5,
     textTransform: 'uppercase',
@@ -1480,11 +990,11 @@ const styles = StyleSheet.create({
     color: '#10B981',
   },
   statusCardDesc: {
+    ...typography.caption,
     fontSize: 11.5,
     color: '#8C8AA2',
     textAlign: 'center',
     lineHeight: 16,
-    fontWeight: '500',
   },
   scannerActions: {
     flexDirection: 'row',
@@ -1506,9 +1016,9 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
   scannerRetryText: {
+    fontFamily: fonts.bold,
     color: '#FFFFFF',
     fontSize: 13,
-    fontWeight: '700',
   },
   scannerCancelButton: {
     flex: 1,
@@ -1521,9 +1031,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   scannerCancelText: {
+    fontFamily: fonts.bold,
     color: '#A09EC2',
     fontSize: 13,
-    fontWeight: '700',
   },
   permissionCard: {
     backgroundColor: '#FFFFFF',
@@ -1538,17 +1048,15 @@ const styles = StyleSheet.create({
     marginTop: 40,
   },
   permissionCardTitle: {
-    fontSize: 18,
-    fontWeight: '800',
+    ...typography.sectionHeader,
     color: '#0F0F1A',
     marginTop: 16,
     marginBottom: 8,
   },
   permissionCardDesc: {
-    fontSize: 13,
+    ...typography.secondary,
     color: '#6B6B80',
     textAlign: 'center',
-    lineHeight: 18,
     marginBottom: 24,
     paddingHorizontal: 8,
   },
@@ -1562,9 +1070,8 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   permissionButtonText: {
+    ...typography.button,
     color: '#FFFFFF',
-    fontSize: 14,
-    fontWeight: '700',
   },
   permissionCancelButton: {
     borderRadius: 14,
@@ -1576,8 +1083,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   permissionCancelButtonText: {
-    color: '#6B6B80',
+    ...typography.button,
     fontSize: 14,
-    fontWeight: '600',
+    color: '#6B6B80',
   },
 });

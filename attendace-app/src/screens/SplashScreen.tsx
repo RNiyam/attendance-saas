@@ -19,6 +19,7 @@ import Svg, {
   RadialGradient,
   Stop,
 } from 'react-native-svg';
+import { fonts, typography } from '../theme';
 
 interface SplashScreenProps {
   navigation: any;
@@ -468,14 +469,13 @@ const styles = StyleSheet.create({
     gap: 2,
   },
   empName: {
-    fontFamily: 'System',
+    ...typography.employeeName,
     fontSize: 13,
-    fontWeight: '600',
     color: '#2A1E44',
   },
   empTime: {
+    ...typography.caption,
     fontSize: 10,
-    fontWeight: '400',
     color: '#9B88C4',
   },
   empPill: {
@@ -498,8 +498,8 @@ const styles = StyleSheet.create({
   dotIn: { backgroundColor: '#2E7D52' },
   dotOut: { backgroundColor: '#A03030' },
   pillText: {
+    ...typography.statusChip,
     fontSize: 9,
-    fontWeight: '600',
     letterSpacing: 0.5,
   },
   textIn: { color: '#2E7D52' },
@@ -540,16 +540,16 @@ const styles = StyleSheet.create({
 
   // text
   title: {
+    ...typography.screenTitle,
     fontSize: 28,
-    fontWeight: '400',
     fontStyle: 'italic',
     color: '#2A1E44',
     letterSpacing: -0.3,
     marginBottom: 7,
   },
   subtitle: {
+    ...typography.caption,
     fontSize: 10,
-    fontWeight: '400',
     letterSpacing: 3,
     color: '#9B88C4',
     marginBottom: 32,
@@ -574,8 +574,8 @@ const styles = StyleSheet.create({
     width: '100%',
     textAlign: 'center',
     color: '#F0EDF8',
+    fontFamily: fonts.semiBold,
     fontSize: 15,
-    fontWeight: '600',
     letterSpacing: 0.5,
   },
   sliderKnob: {

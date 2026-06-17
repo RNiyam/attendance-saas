@@ -1,6 +1,7 @@
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { useRef, useState } from 'react';
 import { ActivityIndicator, Button, Image, StyleSheet, Text, View, Platform } from 'react-native';
+import { typography } from '../theme';
 
 const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || (Platform.select({
   android: 'http://10.0.2.2:5003',
@@ -152,8 +153,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
   },
   title: {
-    fontSize: 20,
-    fontWeight: 'bold',
+    ...typography.sectionHeader,
     marginBottom: 20,
     textAlign: 'center',
   },
@@ -179,14 +179,14 @@ const styles = StyleSheet.create({
     marginTop: 20,
   },
   statusText: {
+    ...typography.body,
     marginTop: 20,
-    fontSize: 16,
-    fontWeight: '500',
   },
   backButton: {
     marginTop: 40,
   },
   permissionText: {
+    ...typography.bodySmall,
     textAlign: 'center',
   },
 });

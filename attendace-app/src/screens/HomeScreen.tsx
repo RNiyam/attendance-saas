@@ -21,6 +21,7 @@ import Svg, {
   Line,
   Polyline,
 } from 'react-native-svg';
+import { fonts } from '../theme';
 
 interface HomeScreenProps {
   route: {
@@ -246,7 +247,7 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
                   <Text style={[styles.statConsoleValue, { color: '#7C3AED' }]}>
                     {permissions.length}
                   </Text>
-                  <Text style={[styles.statConsoleLabel, { color: '#906BFF', fontWeight: '700' }]}>
+                  <Text style={[styles.statConsoleLabel, { color: '#906BFF', fontFamily: fonts.bold }]}>
                     Privileges 🔍
                   </Text>
                 </Pressable>
@@ -882,7 +883,7 @@ const styles = StyleSheet.create({
   },
   badgeText: {
     fontSize: 11,
-    fontWeight: '700',
+    fontFamily: fonts.bold,
     letterSpacing: 0.5,
   },
   badgeTextAdmin: {
@@ -912,7 +913,7 @@ const styles = StyleSheet.create({
   },
   cardDate: {
     fontSize: 13,
-    fontWeight: '700',
+    fontFamily: fonts.bold,
     color: '#9CA3AF',
   },
   statusPulseContainer: {
@@ -928,12 +929,12 @@ const styles = StyleSheet.create({
   },
   statusText: {
     fontSize: 11,
-    fontWeight: '700',
+    fontFamily: fonts.bold,
     color: '#10B981',
   },
   cardTitle: {
     fontSize: 20,
-    fontWeight: '900',
+    fontFamily: fonts.bold,
     color: '#0F0F1A',
   },
   cardSubtitle: {
@@ -956,7 +957,7 @@ const styles = StyleSheet.create({
   },
   statConsoleValue: {
     fontSize: 15,
-    fontWeight: '900',
+    fontFamily: fonts.bold,
     color: '#0F0F1A',
     textAlign: 'center',
   },
@@ -964,7 +965,7 @@ const styles = StyleSheet.create({
     fontSize: 10,
     color: '#9CA3AF',
     marginTop: 4,
-    fontWeight: '700',
+    fontFamily: fonts.bold,
     textTransform: 'uppercase',
     letterSpacing: 0.3,
   },
@@ -975,7 +976,7 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     fontSize: 13,
-    fontWeight: '800',
+    fontFamily: fonts.bold,
     color: '#8B8B9E',
     textTransform: 'uppercase',
     letterSpacing: 1.2,
@@ -1026,14 +1027,14 @@ const styles = StyleSheet.create({
   },
   actionTitle: {
     fontSize: 15,
-    fontWeight: '800',
+    fontFamily: fonts.bold,
     color: '#0F0F1A',
   },
   actionDesc: {
     fontSize: 11,
     color: '#9CA3AF',
     marginTop: 3,
-    fontWeight: '500',
+    fontFamily: fonts.medium,
   },
   chevronContainer: {
     marginLeft: 8,
@@ -1052,7 +1053,7 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 11.5,
     color: '#1D4ED8',
-    fontWeight: '500',
+    fontFamily: fonts.medium,
     lineHeight: 16,
   },
   logoutButton: {
@@ -1073,7 +1074,7 @@ const styles = StyleSheet.create({
   logoutText: {
     color: '#EF4444',
     fontSize: 14,
-    fontWeight: '800',
+    fontFamily: fonts.bold,
     letterSpacing: 0.5,
   },
 
@@ -1116,7 +1117,7 @@ const styles = StyleSheet.create({
   },
   moduleTitle: {
     fontSize: 14.5,
-    fontWeight: '800',
+    fontFamily: fonts.bold,
     color: '#0F0F1A',
   },
   syncIndicatorBadge: {
@@ -1129,7 +1130,7 @@ const styles = StyleSheet.create({
   },
   syncIndicatorText: {
     fontSize: 8.5,
-    fontWeight: '800',
+    fontFamily: fonts.bold,
     color: '#16A34A',
     letterSpacing: 0.5,
   },
@@ -1138,7 +1139,7 @@ const styles = StyleSheet.create({
     color: '#6B6B80',
     marginTop: 3,
     lineHeight: 15,
-    fontWeight: '500',
+    fontFamily: fonts.medium,
   },
 
   // ── Permissions Modal Inspector Styles ──
@@ -1184,13 +1185,13 @@ const styles = StyleSheet.create({
   },
   modalSheetHeaderBadgeText: {
     fontSize: 10,
-    fontWeight: '800',
+    fontFamily: fonts.bold,
     color: '#7C3AED',
     letterSpacing: 0.5,
   },
   modalSheetTitle: {
     fontSize: 20,
-    fontWeight: '900',
+    fontFamily: fonts.bold,
     color: '#0F0F1A',
   },
   modalSheetSubtitle: {
@@ -1199,7 +1200,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginTop: 4,
     lineHeight: 16,
-    fontWeight: '500',
+    fontFamily: fonts.medium,
   },
   modalSheetScroll: {
     marginVertical: 14,
@@ -1212,7 +1213,7 @@ const styles = StyleSheet.create({
     color: '#9CA3AF',
     fontSize: 13,
     marginVertical: 24,
-    fontWeight: '600',
+    fontFamily: fonts.semiBold,
   },
   permissionsChipsGrid: {
     flexDirection: 'row',
@@ -1240,7 +1241,7 @@ const styles = StyleSheet.create({
   permissionChipText: {
     fontSize: 11,
     color: '#334155',
-    fontWeight: '700',
+    fontFamily: fonts.bold,
     letterSpacing: 0.2,
   },
   modalSheetCloseButton: {
@@ -1258,7 +1259,7 @@ const styles = StyleSheet.create({
   modalSheetCloseButtonText: {
     color: '#FFFFFF',
     fontSize: 14,
-    fontWeight: '800',
+    fontFamily: fonts.bold,
   },
 
   // ── Sync Module Modal Card Styles ──
@@ -1290,7 +1291,7 @@ const styles = StyleSheet.create({
   },
   moduleInfoTitle: {
     fontSize: 18,
-    fontWeight: '900',
+    fontFamily: fonts.bold,
     color: '#0F0F1A',
   },
   moduleInfoBadgeRow: {
@@ -1316,7 +1317,7 @@ const styles = StyleSheet.create({
   },
   moduleInfoStatusText: {
     fontSize: 9.5,
-    fontWeight: '800',
+    fontFamily: fonts.bold,
     color: '#047857',
     letterSpacing: 0.5,
     textTransform: 'uppercase',
@@ -1327,7 +1328,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     lineHeight: 18,
     marginBottom: 20,
-    fontWeight: '500',
+    fontFamily: fonts.medium,
   },
   moduleInfoSyncNoticeBox: {
     flexDirection: 'row',
@@ -1344,7 +1345,7 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: '#1D4ED8',
     lineHeight: 16,
-    fontWeight: '600',
+    fontFamily: fonts.semiBold,
   },
   moduleInfoCloseButton: {
     backgroundColor: '#0F0F1A',
@@ -1357,7 +1358,7 @@ const styles = StyleSheet.create({
   moduleInfoCloseButtonText: {
     color: '#FFFFFF',
     fontSize: 13.5,
-    fontWeight: '800',
+    fontFamily: fonts.bold,
   },
 
   // ── Premium Header Styles (Aligned with Image 1) ──
@@ -1397,14 +1398,14 @@ const styles = StyleSheet.create({
   },
   greetingText: {
     fontSize: 18,
-    fontWeight: '800',
+    fontFamily: fonts.bold,
     color: '#0F0F1A',
     letterSpacing: -0.3,
     textAlign: 'center',
   },
   dateText: {
     fontSize: 12.5,
-    fontWeight: '600',
+    fontFamily: fonts.semiBold,
     color: '#8C8AA2',
     marginTop: 2,
     textAlign: 'center',
@@ -1502,7 +1503,7 @@ const styles = StyleSheet.create({
   },
   uptimeTitle: {
     fontSize: 10,
-    fontWeight: '800',
+    fontFamily: fonts.bold,
     color: '#8B8B9E',
     letterSpacing: 0.8,
   },
@@ -1525,19 +1526,19 @@ const styles = StyleSheet.create({
   },
   uptimeActiveText: {
     fontSize: 8.5,
-    fontWeight: '800',
+    fontFamily: fonts.bold,
     color: '#047857',
   },
   uptimePercentage: {
     fontSize: 28,
-    fontWeight: '900',
+    fontFamily: fonts.bold,
     color: '#0F0F1A',
     marginTop: 6,
   },
   uptimeDesc: {
     fontSize: 11,
     color: '#6B6B80',
-    fontWeight: '600',
+    fontFamily: fonts.semiBold,
     marginTop: 4,
   },
   analyticsDividerLine: {
@@ -1558,13 +1559,13 @@ const styles = StyleSheet.create({
   },
   speedValue: {
     fontSize: 15,
-    fontWeight: '900',
+    fontFamily: fonts.bold,
     color: '#0F0F1A',
   },
   speedLabel: {
     fontSize: 9.5,
     color: '#9CA3AF',
-    fontWeight: '600',
+    fontFamily: fonts.semiBold,
     marginTop: 2,
   },
   auditLogContainer: {
@@ -1593,13 +1594,13 @@ const styles = StyleSheet.create({
   },
   auditTitle: {
     fontSize: 12.5,
-    fontWeight: '700',
+    fontFamily: fonts.bold,
     color: '#0F0F1A',
   },
   auditMeta: {
     fontSize: 10.5,
     color: '#8C8AA2',
-    fontWeight: '500',
+    fontFamily: fonts.medium,
     marginTop: 2,
   },
 
@@ -1629,13 +1630,13 @@ const styles = StyleSheet.create({
   },
   profileCardName: {
     fontSize: 18,
-    fontWeight: '800',
+    fontFamily: fonts.bold,
     color: '#0F0F1A',
   },
   profileCardEmail: {
     fontSize: 12,
     color: '#6B6B80',
-    fontWeight: '600',
+    fontFamily: fonts.semiBold,
     marginTop: 4,
   },
   profileCardBadge: {
@@ -1678,6 +1679,6 @@ const styles = StyleSheet.create({
   permissionChipTextProfile: {
     fontSize: 10,
     color: '#475569',
-    fontWeight: '700',
+    fontFamily: fonts.bold,
   },
 });

@@ -25,3 +25,15 @@ export const otpVerifications = pgTable("otp_verifications", {
   verifiedAt: timestamp("verified_at", { mode: "date" }),
   createdAt: createdAtCol(),
 });
+
+/** One-time tokens for self-service password reset (store SHA-256 hash only). */
+export const passwordResetTokens = pgTable("password_reset_tokens", {
+  id: tableId(),
+  userId: integer("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  tokenHash: varchar("token_hash", { length: 255 }).notNull(),
+  expiresAt: timestamp("expires_at", { mode: "date" }).notNull(),
+  usedAt: timestamp("used_at", { mode: "date" }),
+  createdAt: createdAtCol(),
+});

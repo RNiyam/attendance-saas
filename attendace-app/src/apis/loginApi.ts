@@ -8,6 +8,9 @@ export const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || (Platform.select(
   default: 'http://127.0.0.1:5003',
 }) as string);
 
+/** Deep link base used in password-reset emails initiated from the mobile app. */
+export const MOBILE_PASSWORD_RESET_BASE_URL = 'attendaceapp://reset-password';
+
 export interface LoginResponse {
   accessToken?: string;
   refreshToken?: string;
@@ -49,9 +52,6 @@ export interface SessionResponse {
   employeeId: number | null;
 }
 
-/**
- * Performs a login request to the Node backend API.
- */
 export async function loginUser(identifier: string, password: string): Promise<LoginResponse> {
   try {
     const response = await fetch(`${API_BASE_URL}/api/auth/login`, {
@@ -75,6 +75,75 @@ export async function loginUser(identifier: string, password: string): Promise<L
     console.error('[loginApi] loginUser error:', error);
     throw new Error(error.message || 'Network error connecting to auth server.');
   }
+}
+
+export interface ForgotPasswordResponse {
+  message: string;
+}
+
+/**
+ * Requests a password reset email for the given work email.
+ */
+export interface ValidateResetTokenResponse {
+  valid: boolean;
+  email: string;
+}
+
+export interface ResetPasswordResponse {
+  message: string;
+}
+
+export async function requestPasswordReset(
+  email: string,
+  organizationSlug?: string,
+): Promise<ForgotPasswordResponse> {
+  const body: { email: string; organizationSlug?: string; resetBaseUrl?: string } = {
+    email,
+    resetBaseUrl: MOBILE_PASSWORD_RESET_BASE_URL,
+  };
+  if (organizationSlug?.trim()) {
+    body.organizationSlug = organizationSlug.trim().toUpperCase();
+  }
+
+  const response = await fetch(`${API_BASE_URL}/api/auth/forgot-password`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(data.error || 'Could not send password reset link.');
+  }
+
+  return data;
+}
+
+export async function validatePasswordResetToken(token: string): Promise<ValidateResetTokenResponse> {
+  const response = await fetch(
+    `${API_BASE_URL}/api/auth/reset-password/validate?token=${encodeURIComponent(token)}`,
+  );
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(data.error || 'This password reset link is invalid or has expired.');
+  }
+  return data;
+}
+
+export async function resetPasswordWithToken(
+  token: string,
+  newPassword: string,
+): Promise<ResetPasswordResponse> {
+  const response = await fetch(`${API_BASE_URL}/api/auth/reset-password`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ token, newPassword }),
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(data.error || 'Could not reset password.');
+  }
+  return data;
 }
 
 /**
