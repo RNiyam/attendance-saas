@@ -52,6 +52,21 @@ const refreshSchema = z.object({
   refreshToken: z.string().min(10),
 });
 
+const forgotPasswordSchema = z.object({
+  email: z.string().email(),
+  organizationSlug: z.string().trim().min(1).optional(),
+  resetBaseUrl: z.string().trim().min(1).optional(),
+});
+
+const resetPasswordSchema = z.object({
+  token: z.string().min(10),
+  newPassword: passwordSchema,
+});
+
+const resetTokenQuerySchema = z.object({
+  token: z.string().min(10),
+});
+
 router.post("/signup", async (req, res, next) => {
   try {
     const body = signupSchema.parse(req.body);
@@ -89,6 +104,36 @@ router.post("/complete-password-setup", async (req, res, next) => {
   try {
     const body = completePasswordSetupSchema.parse(req.body);
     const result = await authService.completePasswordSetup(body);
+    res.json(result);
+  } catch (e) {
+    next(e);
+  }
+});
+
+router.post("/forgot-password", async (req, res, next) => {
+  try {
+    const body = forgotPasswordSchema.parse(req.body);
+    const result = await authService.requestPasswordReset(body);
+    res.json(result);
+  } catch (e) {
+    next(e);
+  }
+});
+
+router.get("/reset-password/validate", async (req, res, next) => {
+  try {
+    const { token } = resetTokenQuerySchema.parse(req.query);
+    const result = await authService.validatePasswordResetToken(token);
+    res.json(result);
+  } catch (e) {
+    next(e);
+  }
+});
+
+router.post("/reset-password", async (req, res, next) => {
+  try {
+    const body = resetPasswordSchema.parse(req.body);
+    const result = await authService.resetPasswordWithToken(body);
     res.json(result);
   } catch (e) {
     next(e);

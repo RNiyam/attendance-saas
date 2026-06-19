@@ -1,16 +1,30 @@
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { useRef, useState } from 'react';
-import { ActivityIndicator, Button, Image, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Button, Image, StyleSheet, Text, View, Platform } from 'react-native';
+import { typography } from '../theme';
+
+const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || (Platform.select({
+  android: 'http://10.0.2.2:5003',
+  ios: 'http://127.0.0.1:5003',
+  default: 'http://127.0.0.1:5003',
+}) as string);
 
 type ScreenProps = {
-  onBack: () => void;
+  navigation: any;
+  route: {
+    params?: {
+      accessToken?: string;
+      employeeId?: number;
+    };
+  };
 };
 
 type CapturedPhoto = {
   uri: string;
 };
 
-export default function AttendanceScreen({ onBack }: ScreenProps) {
+export default function AttendanceScreen({ navigation, route }: ScreenProps) {
+  const { accessToken, employeeId } = route.params || {};
   const [permission, requestPermission] = useCameraPermissions();
   const cameraRef = useRef<any>(null);
   const [photo, setPhoto] = useState<CapturedPhoto | null>(null);
@@ -54,7 +68,7 @@ export default function AttendanceScreen({ onBack }: ScreenProps) {
         } as any,
       );
 
-      const pythonBackendUrl = 'http://127.0.0.1:8000/extract-face';
+      const pythonBackendUrl = (process.env.EXPO_PUBLIC_PYTHON_API_URL || 'http://127.0.0.1:8000') + '/extract-face';
       const response = await fetch(pythonBackendUrl, {
         method: 'POST',
         body: formData,
@@ -73,15 +87,15 @@ export default function AttendanceScreen({ onBack }: ScreenProps) {
 
       setStatus('Matching face...');
 
-      const nodeBackendUrl = 'http://127.0.0.1:3001/attendance/check-in';
+      const nodeBackendUrl = `${API_BASE_URL}/api/attendance/check-in`;
       const attResponse = await fetch(nodeBackendUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: 'Bearer YOUR_TOKEN',
+          'Authorization': `Bearer ${accessToken}`,
         },
         body: JSON.stringify({
-          employeeId: 1,
+          employeeId: employeeId || 1,
           source: 'face',
           embedding: data.embedding,
           selfieUrl: photo.uri,
@@ -125,7 +139,7 @@ export default function AttendanceScreen({ onBack }: ScreenProps) {
       )}
 
       <View style={styles.backButton}>
-        <Button title="Back to Home" onPress={onBack} disabled={loading} />
+        <Button title="Back to Home" onPress={() => navigation.goBack()} disabled={loading} />
       </View>
     </View>
   );
@@ -139,8 +153,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
   },
   title: {
-    fontSize: 20,
-    fontWeight: 'bold',
+    ...typography.sectionHeader,
     marginBottom: 20,
     textAlign: 'center',
   },
@@ -166,14 +179,14 @@ const styles = StyleSheet.create({
     marginTop: 20,
   },
   statusText: {
+    ...typography.body,
     marginTop: 20,
-    fontSize: 16,
-    fontWeight: '500',
   },
   backButton: {
     marginTop: 40,
   },
   permissionText: {
+    ...typography.bodySmall,
     textAlign: 'center',
   },
 });

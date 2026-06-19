@@ -53,7 +53,14 @@ export default function LoginPage() {
       }
       if (data?.refreshToken) localStorage.setItem("refreshToken", data.refreshToken);
       if (orgSlug) localStorage.setItem("organizationCode", orgSlug);
-      router.push("/onboarding");
+      
+      // Enforce proper conditional routing based on onboarding status
+      const needsOnboarding = !data?.onboardingCompleted || !data?.roleAssigned;
+      if (needsOnboarding) {
+        router.push("/onboarding");
+      } else {
+        router.push("/dashboard");
+      }
     } catch {
       setErrorMessage("Network error while signing in.");
     } finally {
@@ -133,7 +140,7 @@ export default function LoginPage() {
                   Password
                 </label>
                 <Link href="/forgot-password" className="text-[12px] font-semibold text-[#4F7FFF] hover:text-[#3A6AEA]">
-                  Forgot?
+                  Forgot password?
                 </Link>
               </div>
               <div className="relative">

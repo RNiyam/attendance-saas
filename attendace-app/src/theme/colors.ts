@@ -1,0 +1,21 @@
+/** WorkforceOS web-aligned palette */
+export const colors = {
+  background: '#F7F5F0',
+  surface: '#FFFFFF',
+  text: '#0F0F1A',
+  textSecondary: '#6B6B80',
+  textMuted: '#9CA3AF',
+  placeholder: '#CACAD6',
+  border: '#E8E5F0',
+  inputBg: '#FAFAFA',
+  primary: '#4F7FFF',
+  primaryDark: '#3A6AEA',
+  accent: '#7C3AED',
+  gradientStart: '#4F7FFF',
+  gradientEnd: '#7C3AED',
+  success: '#166534',
+  successBg: '#BBF7D0',
+  error: '#DC2626',
+  errorBg: '#FEF2F2',
+  errorBorder: '#FECACA',
+} as const;

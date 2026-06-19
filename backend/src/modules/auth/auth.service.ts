@@ -1,12 +1,14 @@
 import { createHash, randomBytes, randomInt, randomUUID } from "node:crypto";
 import bcrypt from "bcrypt";
-import { and, desc, eq, sql, ilike } from "drizzle-orm";
+import { and, desc, eq, sql, ilike, or } from "drizzle-orm";
 import jwt from "jsonwebtoken";
 import { db } from "../../database/index";
 import {
   authSessions,
   employees,
+  employeeFaces,
   organizations,
+  passwordResetTokens,
   permissions,
   rolePermissions,
   roles,
@@ -15,7 +17,7 @@ import {
 } from "../../database/schema/index";
 import { getEnv } from "../../config/env";
 import { writeActivityLog } from "../../utils/audit";
-import { sendWelcomeEmail, sendOnboardingRoleWelcomeEmail } from "../email/email.service";
+import { sendWelcomeEmail, sendOnboardingRoleWelcomeEmail, sendPasswordResetEmail } from "../email/email.service";
 import { INDIAN_STATES, listCitiesForState } from "../reference/india-geo.data";
 import { findSector } from "../reference/sectors.data";
 
@@ -23,6 +25,7 @@ const BCRYPT_ROUNDS = 12;
 const MAX_FAILED_LOGIN_ATTEMPTS = 5;
 const ACCOUNT_LOCK_MINUTES = 15;
 const TEMP_PASSWORD_EXPIRES_HOURS = 24;
+const PASSWORD_RESET_EXPIRES_MINUTES = 60;
 
 const DEFAULT_PERMISSIONS: { code: string; module: string; description: string }[] = [
   { code: "CREATE_EMPLOYEE", module: "employees", description: "Create employees" },
@@ -444,12 +447,30 @@ export type CompletePasswordSetupInput = {
   newPassword: string;
 };
 
+export type ForgotPasswordInput = {
+  email: string;
+  organizationSlug?: string;
+  resetBaseUrl?: string;
+};
+
+export type ResetPasswordInput = {
+  token: string;
+  newPassword: string;
+};
+
 async function resolveLoginUserAndOrg(input: LoginInput) {
   const identifier = input.identifier.trim().toLowerCase();
   const slugRaw = input.organizationSlug?.trim();
 
   const isEmail = identifier.includes("@");
   
+  const nameCondition = or(
+    ilike(users.firstName, identifier),
+    ilike(users.lastName, identifier),
+    eq(sql`lower(trim(concat(${users.firstName}, ' ', ${users.lastName})))`, identifier),
+    eq(sql`lower(concat(${users.firstName}, ${users.lastName}))`, identifier)
+  );
+
   if (slugRaw) {
     const organizationCode = normalizeOrganizationCode(slugRaw);
     const [org] = await db.select().from(organizations).where(eq(organizations.slug, organizationCode)).limit(1);
@@ -464,7 +485,7 @@ async function resolveLoginUserAndOrg(input: LoginInput) {
       .where(
         and(
           eq(users.organizationId, org.id),
-          isEmail ? eq(users.email, identifier) : ilike(users.firstName, identifier)
+          isEmail ? eq(users.email, identifier) : nameCondition
         )
       )
       .limit(1);
@@ -482,7 +503,7 @@ async function resolveLoginUserAndOrg(input: LoginInput) {
     .innerJoin(organizations, eq(users.organizationId, organizations.id))
     .where(
       and(
-        isEmail ? eq(users.email, identifier) : ilike(users.firstName, identifier),
+        isEmail ? eq(users.email, identifier) : nameCondition,
         eq(users.status, "active")
       )
     );
@@ -564,11 +585,23 @@ export async function login(input: LoginInput) {
     activityType: "auth.login",
     metadata: { email: user.email },
   });
+
+  const roleRows = await db
+    .select({ roleName: roles.name })
+    .from(userRoles)
+    .innerJoin(roles, eq(roles.id, userRoles.roleId))
+    .where(eq(userRoles.userId, user.id));
+
+  const onboardingCompleted = Boolean(org?.legalName?.trim());
+  const roleAssigned = roleRows.length > 0;
+
   return {
     accessToken,
     refreshToken,
     user: { id: user.id, email: user.email, organizationId: org.id },
     organization: { id: org.id, name: org.name, slug: org.slug },
+    onboardingCompleted,
+    roleAssigned,
   };
 }
 
@@ -747,6 +780,8 @@ export type SessionDetail = {
   roleAssigned: boolean;
   onboardingCompleted: boolean;
   displayName: string;
+  faceRegistered: boolean;
+  employeeId: number | null;
 };
 
 export async function getSessionDetail(userId: number): Promise<SessionDetail | null> {
@@ -770,10 +805,22 @@ export async function getSessionDetail(userId: number): Promise<SessionDetail | 
       .replace(/\b\w/g, (c) => c.toUpperCase());
       
   const [emp] = await db
-    .select({ profileImageUrl: employees.profileImageUrl })
+    .select({ id: employees.id, profileImageUrl: employees.profileImageUrl })
     .from(employees)
     .where(eq(employees.userId, userId))
     .limit(1);
+
+  let faceRegistered = false;
+  let employeeId: number | null = null;
+  if (emp) {
+    employeeId = emp.id;
+    const [face] = await db
+      .select({ id: employeeFaces.id })
+      .from(employeeFaces)
+      .where(eq(employeeFaces.employeeId, emp.id))
+      .limit(1);
+    faceRegistered = !!face;
+  }
 
   return {
     user: {
@@ -798,6 +845,8 @@ export async function getSessionDetail(userId: number): Promise<SessionDetail | 
     roleAssigned: roleRows.length > 0,
     onboardingCompleted,
     displayName,
+    faceRegistered,
+    employeeId,
   };
 }
 
@@ -938,4 +987,168 @@ export async function saveOnboardingProfile(organizationId: number, userId: numb
   }
 
   return { employeeId: createdEmp?.id };
+}
+
+async function resolveUserForPasswordReset(email: string, organizationSlug?: string) {
+  const normalizedEmail = email.trim().toLowerCase();
+  if (organizationSlug?.trim()) {
+    const organizationCode = normalizeOrganizationCode(organizationSlug);
+    const [org] = await db.select().from(organizations).where(eq(organizations.slug, organizationCode)).limit(1);
+    if (!org) return null;
+    const [user] = await db
+      .select()
+      .from(users)
+      .where(
+        and(eq(users.organizationId, org.id), eq(users.email, normalizedEmail), eq(users.status, "active")),
+      )
+      .limit(1);
+    if (!user || user.passwordChangeRequired) return null;
+    return { user, org };
+  }
+
+  const matches = await db
+    .select({ user: users, org: organizations })
+    .from(users)
+    .innerJoin(organizations, eq(users.organizationId, organizations.id))
+    .where(and(eq(users.email, normalizedEmail), eq(users.status, "active")));
+
+  const eligible = matches.filter((m) => !m.user.passwordChangeRequired);
+  if (eligible.length === 0) return null;
+  if (eligible.length > 1) {
+    const err = new Error(
+      "This email is linked to more than one workspace. Provide your organization code to reset your password.",
+    );
+    (err as { status?: number }).status = 409;
+    throw err;
+  }
+  return { user: eligible[0].user, org: eligible[0].org };
+}
+
+export async function requestPasswordReset(input: ForgotPasswordInput) {
+  const response = {
+    message: "If an account exists for that email, you will receive a password reset link shortly.",
+  };
+
+  let resolved: { user: typeof users.$inferSelect; org: typeof organizations.$inferSelect } | null;
+  try {
+    resolved = await resolveUserForPasswordReset(input.email, input.organizationSlug);
+  } catch (e) {
+    throw e;
+  }
+
+  if (!resolved) {
+    return response;
+  }
+
+  const { user, org } = resolved;
+  const rawToken = randomBytes(32).toString("hex");
+  const tokenHash = hashRefreshToken(rawToken);
+  const expiresAt = new Date(Date.now() + PASSWORD_RESET_EXPIRES_MINUTES * 60_000);
+
+  await db
+    .delete(passwordResetTokens)
+    .where(and(eq(passwordResetTokens.userId, user.id), sql`${passwordResetTokens.usedAt} is null`));
+
+  await db.insert(passwordResetTokens).values({
+    userId: user.id,
+    tokenHash,
+    expiresAt,
+  });
+
+  const base = (input.resetBaseUrl || `${getEnv().APP_URL}/reset-password`).replace(/\/$/, "");
+  const resetUrl = `${base}?token=${encodeURIComponent(rawToken)}`;
+  const displayName =
+    [user.firstName, user.lastName].filter(Boolean).join(" ").trim() || user.email.split("@")[0] || "there";
+
+  void sendPasswordResetEmail({
+    organizationId: org.id,
+    to: user.email,
+    userName: displayName,
+    resetUrl,
+    expiresInMinutes: PASSWORD_RESET_EXPIRES_MINUTES,
+  }).catch((e) => console.error("[auth] password reset email failed:", e));
+
+  await writeActivityLog({
+    organizationId: org.id,
+    userId: user.id,
+    activityType: "auth.password_reset_requested",
+    metadata: {},
+  });
+
+  return response;
+}
+
+export async function validatePasswordResetToken(token: string) {
+  const tokenHash = hashRefreshToken(token.trim());
+  const [row] = await db
+    .select({
+      expiresAt: passwordResetTokens.expiresAt,
+      usedAt: passwordResetTokens.usedAt,
+      email: users.email,
+    })
+    .from(passwordResetTokens)
+    .innerJoin(users, eq(users.id, passwordResetTokens.userId))
+    .where(eq(passwordResetTokens.tokenHash, tokenHash))
+    .limit(1);
+
+  if (!row || row.usedAt || new Date(row.expiresAt) < new Date()) {
+    const err = new Error("This password reset link is invalid or has expired.");
+    (err as { status?: number }).status = 400;
+    throw err;
+  }
+
+  return { valid: true as const, email: row.email };
+}
+
+export async function resetPasswordWithToken(input: ResetPasswordInput) {
+  const tokenHash = hashRefreshToken(input.token.trim());
+  const [row] = await db
+    .select({
+      id: passwordResetTokens.id,
+      userId: passwordResetTokens.userId,
+      expiresAt: passwordResetTokens.expiresAt,
+      usedAt: passwordResetTokens.usedAt,
+      organizationId: users.organizationId,
+    })
+    .from(passwordResetTokens)
+    .innerJoin(users, eq(users.id, passwordResetTokens.userId))
+    .where(eq(passwordResetTokens.tokenHash, tokenHash))
+    .limit(1);
+
+  if (!row || row.usedAt || new Date(row.expiresAt) < new Date()) {
+    const err = new Error("This password reset link is invalid or has expired.");
+    (err as { status?: number }).status = 400;
+    throw err;
+  }
+
+  const passwordHash = await bcrypt.hash(input.newPassword, BCRYPT_ROUNDS);
+
+  await db.transaction(async (tx) => {
+    await tx
+      .update(users)
+      .set({
+        passwordHash,
+        passwordChangeRequired: false,
+        temporaryPasswordExpiresAt: null,
+        failedLoginAttempts: 0,
+        accountLockedUntil: null,
+      })
+      .where(eq(users.id, row.userId));
+
+    await tx
+      .update(passwordResetTokens)
+      .set({ usedAt: new Date() })
+      .where(eq(passwordResetTokens.id, row.id));
+
+    await tx.delete(authSessions).where(eq(authSessions.userId, row.userId));
+  });
+
+  await writeActivityLog({
+    organizationId: row.organizationId,
+    userId: row.userId,
+    activityType: "auth.password_reset_completed",
+    metadata: {},
+  });
+
+  return { message: "Password updated successfully. You can sign in with your new password." };
 }

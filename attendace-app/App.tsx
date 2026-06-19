@@ -1,61 +1,66 @@
-import { StatusBar } from 'expo-status-bar';
-import { useState } from 'react';
-import { Button, StyleSheet, Text, View } from 'react-native';
+import { useEffect } from 'react';
+import { View } from 'react-native';
+import { NavigationContainer } from '@react-navigation/native';
+import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import { useFonts } from 'expo-font';
 
-import SplashScreen from './src/screens/SplashScreen';
+import SplashScreenView from './src/screens/SplashScreen';
+import LoginScreen from './src/screens/LoginScreen';
+import ForgotPasswordScreen from './src/screens/ForgotPasswordScreen';
+import ResetPasswordScreen from './src/screens/ResetPasswordScreen';
+import HomeScreen from './src/screens/HomeScreen';
 import AttendanceScreen from './src/screens/AttendanceScreen';
 import FaceRegistrationScreen from './src/screens/FaceRegistrationScreen';
+import { applyGlobalFontDefaults, fontAssets } from './src/theme';
 
-type ScreenName = 'Splash' | 'Home' | 'Register' | 'Attendance';
+const Stack = createNativeStackNavigator();
+
+const linking = {
+  prefixes: ['attendaceapp://'],
+  config: {
+    screens: {
+      Splash: 'splash',
+      Login: 'login',
+      ForgotPassword: 'forgot-password',
+      ResetPassword: {
+        path: 'reset-password',
+        parse: {
+          token: (token: string) => decodeURIComponent(token),
+        },
+      },
+      Home: 'home',
+      Register: 'register',
+      Attendance: 'attendance',
+    },
+  },
+};
 
 export default function App() {
-  const [currentScreen, setCurrentScreen] = useState<ScreenName>('Splash');
+  const [fontsLoaded, fontError] = useFonts(fontAssets);
 
-  if (currentScreen === 'Splash') {
-    return <SplashScreen onFinish={() => setCurrentScreen('Home')} />;
-  }
+  useEffect(() => {
+    if (fontsLoaded) {
+      applyGlobalFontDefaults();
+    }
+  }, [fontsLoaded]);
 
-  if (currentScreen === 'Register') {
-    return <FaceRegistrationScreen onBack={() => setCurrentScreen('Home')} />;
-  }
-
-  if (currentScreen === 'Attendance') {
-    return <AttendanceScreen onBack={() => setCurrentScreen('Home')} />;
+  if (!fontsLoaded && !fontError) {
+    return null;
   }
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>HRMS Face Attendance</Text>
-
-      <View style={styles.buttonContainer}>
-        <Button title="Register Face" onPress={() => setCurrentScreen('Register')} />
-      </View>
-
-      <View style={styles.buttonContainer}>
-        <Button title="Mark Attendance" onPress={() => setCurrentScreen('Attendance')} />
-      </View>
-
-      <StatusBar style="auto" />
+    <View style={{ flex: 1 }}>
+      <NavigationContainer linking={linking}>
+        <Stack.Navigator initialRouteName="Splash" screenOptions={{ headerShown: false }}>
+          <Stack.Screen name="Splash" component={SplashScreenView} />
+          <Stack.Screen name="Login" component={LoginScreen} />
+          <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
+          <Stack.Screen name="ResetPassword" component={ResetPasswordScreen} />
+          <Stack.Screen name="Home" component={HomeScreen} />
+          <Stack.Screen name="Register" component={FaceRegistrationScreen} />
+          <Stack.Screen name="Attendance" component={AttendanceScreen} />
+        </Stack.Navigator>
+      </NavigationContainer>
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#fff',
-    padding: 20,
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    marginBottom: 40,
-  },
-  buttonContainer: {
-    marginVertical: 10,
-    width: '100%',
-    maxWidth: 300,
-  },
-});
